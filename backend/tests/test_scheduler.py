@@ -4,8 +4,8 @@ from django.core.management import call_command
 from services import scheduler
 
 
-def test_commands_starts_empty() -> None:
-    assert scheduler.COMMANDS == ()
+def test_commands_are_rollup_prune_rotate_in_order() -> None:
+    assert scheduler.COMMANDS == ("rollup_daily", "prune_pageviews", "rotate_salt")
 
 
 def test_run_cycle_calls_in_order_and_keeps_going_after_a_failure() -> None:

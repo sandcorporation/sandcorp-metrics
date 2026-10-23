@@ -3,6 +3,7 @@ from django.contrib import admin
 from django.urls import path
 
 from core.api import api
+from metrics.views import snippet
 from oauth import login as oauth_login
 from oauth.bearer import protected_resource_metadata
 
@@ -18,6 +19,8 @@ urlpatterns = [
     ),
     path(settings.ADMIN_PATH, admin.site.urls),
     path("api/", api.urls),
+    # 스니펫(각 사이트가 <script src=".../m.js" data-site="키">로 넣는다).
+    path("m.js", snippet, name="snippet"),
     # RFC 9728: 클라이언트가 /mcp 리소스의 경로 붙은 메타데이터를 물을 수도 있어 둘 다 같은 문서.
     path(".well-known/oauth-protected-resource", protected_resource_metadata),
     path(".well-known/oauth-protected-resource/mcp", protected_resource_metadata),

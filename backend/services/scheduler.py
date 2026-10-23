@@ -10,8 +10,8 @@ from django.core.management import call_command
 
 logger = logging.getLogger("scheduler")
 
-# 실행 순서. 한 곳에서만 고친다. (#3이 rollup_daily, prune_pageviews, rotate_salt를 더한다.)
-COMMANDS: tuple[str, ...] = ()
+# 실행 순서. 한 곳에서만 고친다.
+COMMANDS: tuple[str, ...] = ("rollup_daily", "prune_pageviews", "rotate_salt")
 
 CommandCaller = Callable[[str], object]
 
