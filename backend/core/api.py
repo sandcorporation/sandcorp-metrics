@@ -1,7 +1,10 @@
 """HTTP API(django-ninja). 공개 경로와 관리 경로(`/api/admin/...`, 스코프 admin)를 함께 둔다."""
 
 import json
+from collections.abc import Callable
+from datetime import datetime
 
+from django.core.cache import cache
 from django.db import DatabaseError, connection
 from django.http import HttpRequest, HttpResponse
 from django.http.request import RawPostDataException
@@ -9,8 +12,11 @@ from django.utils import timezone
 from ninja import NinjaAPI, Schema, Status
 
 from core.clientip import client_ip
+from core.schemas import SiteStatsResponse, StatsResponse, numbers, site_numbers
+from metrics.models import Site
 from oauth.bearer import BearerAuth, bearer_token, install_bearer_errors
 from services.collect import record
+from services.stats import all_summaries, combine, site_summary
 
 api = NinjaAPI(title="Sandcorp Metrics", docs_url=None)
 install_bearer_errors(api)
@@ -99,3 +105,60 @@ def collect(request: HttpRequest) -> HttpResponse:
 def collect_preflight(request: HttpRequest) -> HttpResponse:
     """`fetch`로 보낼 때의 preflight(204)."""
     return _accepted(204)
+
+
+STATS_TTL = 60
+# 공개 집계는 어느 사이트에서든 읽는다(숫자만). 읽기 전용 GET에만 CORS `*`.
+STATS_HEADERS = {
+    "Access-Control-Allow-Origin": "*",
+    "Cache-Control": f"public, max-age={STATS_TTL}",
+}
+
+
+def _stats_response(body: str, status: int = 200) -> HttpResponse:
+    response = HttpResponse(body, status=status, content_type="application/json")
+    for name, value in STATS_HEADERS.items():
+        response[name] = value
+    return response
+
+
+def _cached(name: str, now: datetime, build: Callable[[], str]) -> str:
+    """분 단위 시각을 키에 넣어 60초 안쪽으로만 묵힌다(JSON 문자열을 캐시)."""
+    key = f"stats:{name}:{now:%Y%m%d%H%M}"
+    body: str | None = cache.get(key)
+    if body is None:
+        body = build()
+        cache.set(key, body, STATS_TTL)
+    return body
+
+
+@api.get("/stats", auth=None, response=StatsResponse)
+def public_stats(request: HttpRequest) -> HttpResponse:
+    """켜진 사이트 전체의 숫자와 합계. 60초 캐시."""
+    now = timezone.now()
+
+    def build() -> str:
+        pairs = all_summaries(now)
+        return StatsResponse(
+            sites=[site_numbers(site, summary) for site, summary in pairs],
+            total=numbers(combine([summary for _, summary in pairs])),
+            generated_at=now,
+        ).model_dump_json()
+
+    return _stats_response(_cached("all", now, build))
+
+
+@api.get("/sites/{key}/stats", auth=None, response=SiteStatsResponse)
+def public_site_stats(request: HttpRequest, key: str) -> HttpResponse:
+    """한 사이트의 숫자. 모르는 키·꺼진 사이트는 404."""
+    now = timezone.now()
+    site = Site.objects.filter(key=key, is_active=True).first()
+    if site is None:
+        return _stats_response(json.dumps({"detail": "unknown site"}), status=404)
+
+    def build() -> str:
+        return SiteStatsResponse(
+            **site_numbers(site, site_summary(site, now)).model_dump(), generated_at=now
+        ).model_dump_json()
+
+    return _stats_response(_cached(f"site:{site.key}", now, build))
