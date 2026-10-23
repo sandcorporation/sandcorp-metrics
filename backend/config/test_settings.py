@@ -12,3 +12,6 @@ from config.settings import DATABASES  # noqa: E402
 DATABASES["default"]["PORT"] = os.environ.get("DB_PORT", "15445")
 
 PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
+
+# 시험은 DB 캐시 테이블 없이 메모리 캐시를 쓴다(테스트마다 conftest가 비운다).
+CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}

@@ -1,0 +1,57 @@
+{% extends "admin/base_site.html" %}
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">홈</a> &rsaquo;
+  <a href="{% url 'admin:metrics_site_changelist' %}">사이트</a> &rsaquo; 요약
+</div>
+{% endblock %}
+{% block content %}
+<p>
+  기간:
+  {% for option in day_options %}
+    {% if option == days %}<strong>최근 {{ option }}일</strong>{% else %}<a href="?days={{ option }}">최근 {{ option }}일</a>{% endif %}{% if not forloop.last %} |{% endif %}
+  {% endfor %}
+</p>
+{% for block in sites %}
+<h2>{{ block.site.name }} ({{ block.site.key }}){% if not block.site.is_active %} — 꺼짐{% endif %}</h2>
+<div class="module">
+  <table>
+    <caption>일별 (오늘은 실시간)</caption>
+    <thead><tr><th>날짜</th><th>조회</th><th>방문자</th></tr></thead>
+    <tbody>
+    {% for row in block.daily %}
+      <tr><td>{{ row.date|date:"Y-m-d" }}</td><td>{{ row.pageviews }}</td><td>{{ row.visitors }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+<div class="module">
+  <table>
+    <caption>상위 경로 {{ limit }}</caption>
+    <thead><tr><th>경로</th><th>조회</th></tr></thead>
+    <tbody>
+    {% for row in block.paths %}
+      <tr><td>{{ row.label }}</td><td>{{ row.count }}</td></tr>
+    {% empty %}
+      <tr><td colspan="2">없음</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+<div class="module">
+  <table>
+    <caption>상위 리퍼러 {{ limit }} (직접·같은 사이트 제외)</caption>
+    <thead><tr><th>호스트</th><th>조회</th></tr></thead>
+    <tbody>
+    {% for row in block.referrers %}
+      <tr><td>{{ row.label }}</td><td>{{ row.count }}</td></tr>
+    {% empty %}
+      <tr><td colspan="2">없음</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% empty %}
+<p>사이트가 없습니다.</p>
+{% endfor %}
+{% endblock %}

@@ -10,6 +10,7 @@ sandcorp-auth 흉내는 세 겹이다(본보기 portfolio `tests/conftest.py`·A
 """
 
 import pytest
+from django.core.cache import cache
 from pytest_django.fixtures import Settings
 
 from adapters.fake_jwks import FakeAuthServer
@@ -38,3 +39,8 @@ def fake_auth_server(
     settings.AUTH_CLIENT_SECRET = token_signer.client_secret
     monkeypatch.setattr("oauth.login.get_exchange_code", lambda: token_signer.exchange_code)
     return token_signer
+
+
+@pytest.fixture(autouse=True)
+def clear_cache() -> None:
+    cache.clear()
