@@ -10,6 +10,7 @@ from urllib.parse import urlsplit
 from django.utils import timezone
 
 from metrics.models import PageView, Site
+from services.paths import mask_path
 from services.visitors import is_bot, visitor_hash
 
 PATH_MAX = 512
@@ -25,12 +26,12 @@ def _host(url: str) -> str:
 
 
 def normalize_path(url: str) -> str:
-    """쿼리·프래그먼트를 뗀 경로(512자에서 자름). 비면 `/`."""
+    """쿼리·프래그먼트를 떼고 식별자 조각을 `*`로 가린 경로(마스킹 뒤 512자에서 자름). 비면 `/`."""
     try:
         path = urlsplit(url).path
     except ValueError:
         path = ""
-    return (path or "/")[:PATH_MAX]
+    return mask_path(path or "/")[:PATH_MAX]
 
 
 def referrer_host(referrer: str, site_hosts: frozenset[str]) -> str:
