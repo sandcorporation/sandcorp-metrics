@@ -1,0 +1,49 @@
+# 운영 compose. Jenkins가 oracle에서 docker-compose.oracle.yml을 얹어 돌린다
+# (COMPOSE_PROJECT_NAME=metrics). 비밀 값은 Jenkins 워크스페이스의 ./.env에서 온다. 저장소에 두지 않는다.
+#
+# DB는 이 파일에 없다: compose 밖의 OCI MySQL HeatWave(같은 인스턴스의 `metrics` DB)이고 web·scheduler가
+# .env의 DB_HOST/DB_PORT/DB_NAME/DB_USER/DB_PASSWORD로 붙는다. `make prod-local`은
+# docker-compose.prod-local.yml을 얹어 로컬 MySQL을 더한다.
+#
+# 공유 oracle 호스트의 자원 상한(예약 아님): web 0.5 CPU / 384m, scheduler 0.2 CPU / 192m.
+name: metrics
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: metrics-web:latest
+    env_file: [.env]
+    environment:
+      DJANGO_DEBUG: "0"
+    ports:
+      - "${HTTP_BIND:-127.0.0.1}:${HTTP_PORT:-18094}:8000"
+    # /api/health(DB 왕복)를 허용 호스트 첫 항목을 Host로 부른다.
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import os,urllib.request as u;h=os.environ.get('DJANGO_ALLOWED_HOSTS','localhost').split(',')[0].strip();u.urlopen(u.Request('http://127.0.0.1:8000/api/health',headers={'Host':h}),timeout=5)"
+      interval: 30s
+      timeout: 6s
+      retries: 3
+      start_period: 60s
+      start_interval: 2s
+    cpus: 0.5
+    mem_limit: 384m
+    restart: unless-stopped
+
+  # web과 같은 이미지. `run_scheduler`가 시작 즉시 한 번, 이후 SCHEDULER_INTERVAL초마다
+  # backend/services/scheduler.py의 COMMANDS를 차례로 부른다. 한 명령의 실패는 기록만 하고 계속한다.
+  scheduler:
+    image: metrics-web:latest
+    pull_policy: never  # `compose build web`이 만든다
+    command: ["python", "manage.py", "run_scheduler"]
+    env_file: [.env]
+    environment:
+      DJANGO_DEBUG: "0"
+    cpus: 0.2
+    mem_limit: 192m
+    restart: unless-stopped

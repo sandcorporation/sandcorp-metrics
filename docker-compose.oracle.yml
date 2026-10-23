@@ -1,0 +1,10 @@
+# oracle 덮어쓰기. 80/443은 NPMplus(호스트 네트워크)가 쓰고 TLS를 끝내
+# metrics.sandcorp.co.kr -> http://172.17.0.1:18094 로 보낸다. web은 docker 브리지 게이트웨이에만 묶는다.
+#
+# oracle의 빌드 컨테이너는 브리지에서 DNS를 못 푼다(EAI_AGAIN). 빌드는 호스트 네트워크로.
+services:
+  web:
+    build:
+      network: host
+    ports: !override
+      - "${HTTP_BIND:-172.17.0.1}:${HTTP_PORT:-18094}:8000"

@@ -1,0 +1,7 @@
+{% extends "admin/base_site.html" %}
+{% block nav-breadcrumbs %}{% endblock %}
+{% block nav-sidebar %}{% endblock %}
+{% block content %}
+<p id="oauth-failed">{{ reason }}</p>
+<p><a href="{{ login_url }}">로그인 화면으로</a></p>
+{% endblock %}
