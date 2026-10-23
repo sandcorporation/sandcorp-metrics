@@ -126,7 +126,12 @@ AUTH_CLIENT_SECRET = env("AUTH_CLIENT_SECRET").strip()
 # 스케줄러(`manage.py run_scheduler`)의 주기(초).
 SCHEDULER_INTERVAL = int(env("SCHEDULER_INTERVAL", "3600"))
 
-# 정적 파일(admin, 이후 m.js)은 collectstatic 결과를 whitenoise가 낸다.
+# 조회(PageView) 보존 기간(일). `prune_pageviews`가 이보다 오래된 행을 지운다.
+PAGEVIEW_RETENTION_DAYS = int(env("PAGEVIEW_RETENTION_DAYS", "90"))
+# 「지금」 방문자: 최근 몇 초 안에 조회가 있던 방문자를 센다.
+LIVE_WINDOW_SECONDS = int(env("LIVE_WINDOW_SECONDS", "300"))
+
+# 정적 파일(admin, m.js)은 collectstatic 결과를 whitenoise가 낸다.
 STATIC_URL = "/static/"
 STATIC_ROOT = Path(env("DJANGO_STATIC_ROOT", str(BASE_DIR / "staticfiles")))
 STORAGES = {
