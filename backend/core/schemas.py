@@ -18,9 +18,13 @@ class Numbers(BaseModel):
     since: date | None
 
 
-class SiteNumbers(Numbers):
+class Ident(BaseModel):
     key: str
     name: str
+
+
+class SiteNumbers(Numbers, Ident):  # 필드 순서: key·name이 앞
+    pass
 
 
 class StatsResponse(BaseModel):
