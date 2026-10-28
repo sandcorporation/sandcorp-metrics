@@ -4,6 +4,10 @@
 db:  ## 로컬 시험·개발용 MySQL 26.10 (127.0.0.1:15445, 프로젝트 metrics-dev, utf8mb4_0900_as_cs)
 	docker compose up -d --wait db
 
+# 시험 하나의 본문 CPU 한도(초). 붐비는 머신이면 `TEST_CPU_LIMIT=1.5 make check`.
+TEST_CPU_LIMIT ?= 1.0
+export TEST_CPU_LIMIT
+
 test: db
 	cd backend && uv run pytest
 

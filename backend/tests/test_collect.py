@@ -9,6 +9,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from django.test import Client
+from django.utils import timezone
 from pytest_django.fixtures import Settings
 
 from metrics.models import PageView, Site
@@ -119,7 +120,8 @@ def test_visitor_uses_ip_from_forwarded_for(
     post(Client(), hit("/a"), xff=xff)
     expected = PageView.objects.get().visitor
     PageView.objects.all().delete()
-    assert record(hit("/a"), "1.2.3.4", CHROME, NOW)
+    # 뷰는 실제 시각의 소금을 쓴다 — 고정 NOW(다른 날)로 부르면 해시가 달라진다.
+    assert record(hit("/a"), "1.2.3.4", CHROME, timezone.now())
     assert PageView.objects.get().visitor == expected
 
 
