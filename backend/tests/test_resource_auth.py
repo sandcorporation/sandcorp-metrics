@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from django.test.client import _MonkeyPatchedWSGIResponse
 
 
-def whoami(client: Client, headers: dict[str, str]) -> "_MonkeyPatchedWSGIResponse":
+def whoami(client: Client, headers: dict[str, str]) -> _MonkeyPatchedWSGIResponse:
     return client.get("/api/admin/whoami", headers=headers)
 
 

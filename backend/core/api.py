@@ -77,13 +77,13 @@ def _read_payload(request: HttpRequest) -> object:
         if int(request.META.get("CONTENT_LENGTH") or 0) > COLLECT_MAX_BODY:
             return None
         body = request.body
-    except (ValueError, RawPostDataException):
+    except ValueError, RawPostDataException:
         return None
     if len(body) > COLLECT_MAX_BODY:
         return None
     try:
         parsed: object = json.loads(body)
-    except (ValueError, UnicodeDecodeError):
+    except ValueError, UnicodeDecodeError:
         return None
     return parsed
 
