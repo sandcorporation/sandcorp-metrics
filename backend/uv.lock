@@ -629,6 +629,20 @@ wheels = [
 ]
 
 [[package]]
+name = "sandcorp-authkit"
+version = "0.2.0"
+source = { git = "ssh://git@github.com/sandcorporation/sandcorp-auth.git?subdirectory=clients%2Fpython&tag=authkit-v0.2.0#e3fd0f64bfa520375dcd1faded85229a682ea219" }
+dependencies = [
+    { name = "pyjwt", extra = ["crypto"] },
+]
+
+[package.optional-dependencies]
+django = [
+    { name = "django" },
+    { name = "django-ninja" },
+]
+
+[[package]]
 name = "sandcorp-metrics-backend"
 version = "0.1.0"
 source = { virtual = "." }
@@ -639,6 +653,7 @@ dependencies = [
     { name = "mysqlclient" },
     { name = "pydantic" },
     { name = "pyjwt", extra = ["crypto"] },
+    { name = "sandcorp-authkit", extra = ["django"] },
     { name = "whitenoise" },
 ]
 
@@ -659,6 +674,7 @@ requires-dist = [
     { name = "mysqlclient", specifier = ">=2.2.7" },
     { name = "pydantic", specifier = ">=2.12" },
     { name = "pyjwt", extras = ["crypto"], specifier = ">=2.10" },
+    { name = "sandcorp-authkit", extras = ["django"], git = "ssh://git@github.com/sandcorporation/sandcorp-auth.git?subdirectory=clients%2Fpython&tag=authkit-v0.2.0" },
     { name = "whitenoise", specifier = ">=6.12.0" },
 ]
 

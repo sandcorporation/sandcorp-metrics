@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Jenkins가 oracle 에이전트에서 잡 워크스페이스(./.env가 있는 곳, 저장소 밖)로 부른다.
-#   1) 이미지 빌드  2) DB(OCI MySQL HeatWave, .env의 DB_*)가 답할 때까지 대기  3) 일회용 컨테이너로
-#   migrate·createcachetable  4) web 교체  5) 헬스체크(DB 왕복) 대기  6) scheduler 교체
+#   1) 이미지 빌드(--ssh default: private 의존성 sandcorp-authkit)  2) DB(OCI MySQL HeatWave,
+#   .env의 DB_*)가 답할 때까지 대기  3) 일회용 컨테이너로 migrate·createcachetable
+#   4) web 교체  5) 헬스체크(DB 왕복) 대기  6) scheduler 교체
 # migrate는 옛 web이 서비스하는 동안 돈다. 파괴적인 스키마 변경은 배포 두 번에 나눈다.
 # `make prod-local`도 같은 스크립트를 COMPOSE_PROJECT_NAME=metrics-local로 돌린다.
 set -euo pipefail
@@ -31,7 +32,15 @@ wait_healthy() {
 }
 
 echo "== 이미지 빌드"
-compose build web
+# sandcorp-authkit(private 저장소)을 받으려면 BuildKit에 SSH를 건네야 한다(`--ssh default`).
+# Jenkins는 GIT_SSH_KEY(키 파일 경로)를 주므로 임시 ssh-agent에 올려 쓰고 끝나면 내린다.
+# 없으면(로컬) 개발자의 SSH agent를 그대로 쓴다. 키 경로·내용은 찍지 않는다.
+if [ -n "${GIT_SSH_KEY:-}" ]; then
+  eval "$(ssh-agent -s)" >/dev/null
+  trap 'ssh-agent -k >/dev/null 2>&1 || true' EXIT
+  ssh-add "$GIT_SSH_KEY" >/dev/null 2>&1
+fi
+compose build --ssh default web
 
 # 운영 DB는 compose 밖(OCI MySQL HeatWave)이다. mysql 서비스는 make prod-local 덮어쓰기에만 있다.
 if compose config --services | grep -qx mysql; then

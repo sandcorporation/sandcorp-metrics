@@ -12,10 +12,10 @@ from typing import Annotated, Protocol
 
 from django.utils import timezone
 from pydantic import BaseModel, ConfigDict, Field
+from sandcorp_authkit.tokens import AccessToken
 
 from core.schemas import SiteReport, daily_items, numbers, site_numbers
 from metrics.models import Site
-from oauth.tokens import AccessToken
 from services import report, sites
 from services.stats import site_summary
 

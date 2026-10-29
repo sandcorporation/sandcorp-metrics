@@ -8,9 +8,9 @@ import json
 import logging
 
 from pydantic import ValidationError
+from sandcorp_authkit.tokens import AccessToken
 
 from mcpserver.tools import JSON, TOOLS, ToolError
-from oauth.tokens import AccessToken
 
 # Newest first. initialize answers the client's version when we know it, else the newest.
 PROTOCOL_VERSIONS = ("2025-11-25", "2025-06-18", "2025-03-26")

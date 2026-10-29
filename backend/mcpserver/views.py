@@ -3,7 +3,7 @@
 Each POST carries one JSON-RPC message and gets one `application/json` answer (202 with no body
 for notifications). There is no SSE stream (GET answers 405) and no session (no
 `Mcp-Session-Id`), which the transport allows. Every method needs a sandcorp-auth access token
-with scope `admin` (`oauth.bearer`).
+with scope `admin` (`oauth.auth`).
 """
 
 import json
@@ -11,16 +11,14 @@ import json
 from django.core.exceptions import RequestDataTooBig
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
+from sandcorp_authkit.tokens import AccessToken
 
 from mcpserver.protocol import INVALID_REQUEST, PARSE_ERROR, PROTOCOL_VERSIONS, dispatch, error
-from oauth.bearer import require_bearer
-from oauth.tokens import AccessToken
-
-MCP_SCOPE = "admin"
+from oauth.auth import require_admin
 
 
 @csrf_exempt  # bearer tokens only, no cookies: CSRF does not apply
-@require_bearer(MCP_SCOPE)
+@require_admin
 def mcp_endpoint(request: HttpRequest, token: AccessToken) -> HttpResponse:
     if request.method != "POST":
         response = HttpResponse(status=405)

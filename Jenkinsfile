@@ -37,7 +37,11 @@ pipeline {
 
     stage('빌드·배포') {
       steps {
-        sh 'bash deploy/deploy.sh'
+        // sandcorp-authkit(private 저장소)을 SSH로 받는다. 키는 deploy.sh가 ssh-agent에 올려 빌드에만 건네고
+        // 로그·이미지에 남기지 않는다. 자격 증명 ID는 Jenkins의 SSH 키 항목.
+        withCredentials([sshUserPrivateKey(credentialsId: 'github-farrar142', keyFileVariable: 'GIT_SSH_KEY')]) {
+          sh 'bash deploy/deploy.sh'
+        }
       }
     }
   }
