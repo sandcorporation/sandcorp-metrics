@@ -25,7 +25,7 @@ Single-context: one `GLOSSARY.md` + `docs/adr/` at the repo root. See `docs/agen
 
 ## 명령
 
-저장소 루트에서 `make <대상>`. 백엔드만 있다: `backend/`(uv, Python 3.13, Django, django-ninja). 프런트 번들은 없다.
+저장소 루트에서 `make <대상>`. 백엔드만 있다: `backend/`(uv, Python 3.14, Django, django-ninja). 프런트 번들은 없다.
 
 - 시험: `make test`. MySQL을 쓴다 — `make db`가 `mysql:26.10.0`(utf8mb4 / `utf8mb4_0900_as_cs`, 시험 속도용 로컬 옵션 포함)을 `metrics-dev` 프로젝트로 `127.0.0.1:15445`에 띄운다(`make test`가 알아서 부른다; `config.test_settings`가 `DB_PORT=15445`와 `DJANGO_ADMIN_PATH=admin`을 기본으로 둔다). portfolio-dev(15442)·news-dev(15443)와 함께 떠 있어도 된다. 드라이버 `mysqlclient` 빌드에는 호스트에 `pkg-config default-libmysqlclient-dev`(apt)가 있어야 한다. 시험 전체는 10초 안에 끝나야 한다.
 - 시험 시간 한도: 시험 하나의 **본문 CPU 1.0초**(목표 0.5초; 현재 최댓값 0.07초). `backend/tests/conftest.py` 훅이 넘은 통과를 실패로 바꾼다(자식 프로세스 포함, 준비·정리는 안 잰다). 환경변수 `TEST_CPU_LIMIT`(초, 0이면 끔; `TEST_CPU_LIMIT=1.5 make check`)로 환경별로 보정하고, 시험 하나만 예외로 올리지 않는다 — 한도 상향은 저장소 주인이 정한다. 넘으면 한도를 올리지 말고 원인을 줄인다. 보는 법: `cd backend && uv run pytest --junitxml=/tmp/j.xml` 뒤 `python3 ~/.claude/skills/test-speed-budget/snippets/junit_slowest.py /tmp/j.xml 20 0.5`(junit 속성 `cpu_seconds`=본문 CPU, `time`은 준비 포함). 훅 확인: `TEST_CPU_LIMIT=0.001 uv run pytest <시험 하나>`가 실패해야 한다. 첫 시험의 setup 1초 남짓은 시험 DB 생성이라 한도 밖이다. MySQL은 템플릿 복제가 없고 직렬이라 따로 하지 않는다. e2e는 없다.
