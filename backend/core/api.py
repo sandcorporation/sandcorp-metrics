@@ -10,11 +10,13 @@ from django.http import HttpRequest, HttpResponse
 from django.http.request import RawPostDataException
 from django.utils import timezone
 from ninja import NinjaAPI, Schema, Status
+from sandcorp_authkit.django import install_bearer_errors
+from sandcorp_authkit.tokens import AccessToken
 
 from core.clientip import client_ip
 from core.schemas import SiteStatsResponse, StatsResponse, numbers, site_numbers
 from metrics.models import Site
-from oauth.bearer import BearerAuth, bearer_token, install_bearer_errors
+from oauth.auth import admin_auth
 from services.collect import record
 from services.stats import all_summaries, combine, site_summary
 
@@ -45,10 +47,12 @@ def health(request: HttpRequest) -> Status[Health]:
     return Status(200, Health(status="ok", db="ok"))
 
 
-@api.get("/admin/whoami", response=WhoAmI, auth=BearerAuth("admin"))
+@api.get("/admin/whoami", response=WhoAmI, auth=admin_auth)
 def whoami(request: HttpRequest) -> WhoAmI:
     """토큰 확인용: 검증된 토큰의 주체와 스코프."""
-    token = bearer_token(request)
+    token = getattr(request, "auth", None)  # BearerAuth가 AccessToken을 둔다
+    if not isinstance(token, AccessToken):
+        raise RuntimeError("whoami outside a BearerAuth endpoint")
     return WhoAmI(
         sub=token.sub, client_id=token.client_id, scopes=sorted(token.scopes), expires_at=token.exp
     )

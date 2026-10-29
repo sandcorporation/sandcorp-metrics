@@ -1,25 +1,33 @@
-"""공용 픽스처. 가짜 어댑터는 `adapters/fake_*.py`, 여기서 끼운다.
+"""공용 픽스처. 가짜 sandcorp-auth는 `sandcorp_authkit.testing`에서 가져와 여기서 끼운다.
 
 sandcorp-auth 흉내는 세 겹이다(본보기 portfolio `tests/conftest.py`·AI-Trend-News와 같은 이름):
 
-- `token_signer`: 서명 키와 고정 시계를 가진 `FakeAuthServer`.
-  `.issue()`·`.bearer()`로 토큰을 만든다.
-- `fake_jwks`(autouse): 토큰 검증이 쓰는 JWKS 캐시와 시계를 `token_signer`의 것으로 바꾼다.
-  어떤 시험도 실제 auth.sandcorp.co.kr에 닿지 않는다.
-- `fake_auth_server`: admin 로그인용 `/authorize`·`/token` 흉내까지 켠다(클라이언트 설정·대표 sub).
+- `token_signer`: 서명 키(`FakeJwks`)와 고정 시계(`FixedClock`)를 어댑터(`oauth.auth`)의
+  seam에 끼우고 `.issue()`·`.bearer()`로 토큰을 만든다.
+- `fake_jwks`(autouse): 위 JWKS. 어떤 시험도 실제 auth.sandcorp.co.kr에 닿지 않는다.
+- `fake_auth_server`: admin 로그인용 `FakeTokenEndpoint`(`/authorize` 승인·`/token`)와
+  클라이언트 설정.
 """
 
 import os
 import resource
 import time
-from collections.abc import Generator
+from collections.abc import Generator, Mapping
+from dataclasses import dataclass
 
 import pytest
 from django.core.cache import cache
 from pytest_django.fixtures import Settings
+from sandcorp_authkit.testing import (
+    OWNER_SUB,
+    FakeJwks,
+    FakeTokenEndpoint,
+    FixedClock,
+    SigningKey,
+    bearer_header,
+)
 
-from adapters.fake_jwks import FakeAuthServer
-from oauth.tokens import JwksCache
+from oauth import auth
 
 # 시험 하나의 본문 CPU 한도(초). 0이면 끈다. 환경변수 TEST_CPU_LIMIT로 덮어쓴다.
 _DEFAULT_LIMIT = "1.0"
@@ -76,28 +84,64 @@ def pytest_runtest_makereport(
     return report
 
 
+@dataclass
+class TokenSigner:
+    """가짜 sandcorp-auth 한 벌: 서명 키(JWKS)·고정 시계·토큰 발급. 기본값만 이 저장소 몫."""
+
+    jwks: FakeJwks
+    clock: FixedClock
+    audience: str
+
+    def issue(
+        self,
+        claims: Mapping[str, object] | None = None,
+        *,
+        key: SigningKey | None = None,
+        headers: Mapping[str, object] | None = None,
+        **more: object,
+    ) -> str:
+        """서명된 액세스 토큰. 값이 None인 claim은 뺀다. `aud=`·`iss=`로 덮어쓸 수 있다."""
+        merged = {**(claims or {}), **more}
+        return self.jwks.issue_access_token(
+            self.clock, audience=self.audience, key=key, headers=headers, **merged
+        )
+
+    def bearer(self, token: str | None = None, **claims: object) -> dict[str, str]:
+        return bearer_header(token if token is not None else self.issue(claims))
+
+
 @pytest.fixture
-def token_signer(settings: Settings) -> FakeAuthServer:
-    settings.AUTH_OWNER_SUB = "owner"
-    return FakeAuthServer(owner_sub="owner", resource=settings.AUTH_RESOURCE)
+def token_signer(monkeypatch: pytest.MonkeyPatch, settings: Settings) -> TokenSigner:
+    settings.AUTH_OWNER_SUB = OWNER_SUB
+    clock = FixedClock()
+    jwks = FakeJwks()
+    cache = jwks.cache(clock)
+    monkeypatch.setattr(auth, "clock", clock)
+    monkeypatch.setattr(auth, "jwks_cache", lambda: cache)
+    return TokenSigner(jwks, clock, settings.AUTH_RESOURCE)
 
 
 @pytest.fixture(autouse=True)
-def fake_jwks(monkeypatch: pytest.MonkeyPatch, token_signer: FakeAuthServer) -> JwksCache:
-    cache = JwksCache(token_signer.fetch_jwks, token_signer.clock)
-    monkeypatch.setattr("oauth.bearer.get_jwks_cache", lambda: cache)
-    monkeypatch.setattr("oauth.bearer.get_clock", lambda: token_signer.clock)
-    return cache
+def fake_jwks(token_signer: TokenSigner) -> FakeJwks:
+    """어떤 시험도 실제 auth.sandcorp.co.kr에 닿지 않는다."""
+    return token_signer.jwks
 
 
 @pytest.fixture
 def fake_auth_server(
-    monkeypatch: pytest.MonkeyPatch, settings: Settings, token_signer: FakeAuthServer
-) -> FakeAuthServer:
-    settings.AUTH_CLIENT_ID = token_signer.client_id
-    settings.AUTH_CLIENT_SECRET = token_signer.client_secret
-    monkeypatch.setattr("oauth.login.get_exchange_code", lambda: token_signer.exchange_code)
-    return token_signer
+    monkeypatch: pytest.MonkeyPatch, settings: Settings, token_signer: TokenSigner
+) -> FakeTokenEndpoint:
+    """admin 로그인용 `/authorize`·`/token` 흉내."""
+    settings.AUTH_CLIENT_ID = "metrics-admin"
+    settings.AUTH_CLIENT_SECRET = "test-client-secret"
+    server = FakeTokenEndpoint(
+        token_signer.jwks,
+        token_signer.clock,
+        client_id="metrics-admin",
+        client_secret="test-client-secret",
+    )
+    monkeypatch.setattr(auth, "token_transport", lambda: server)
+    return server
 
 
 @pytest.fixture(autouse=True)
