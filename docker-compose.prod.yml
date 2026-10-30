@@ -13,7 +13,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: metrics-web:latest
+    # 운영(oracle)은 Jenkins가 METRICS_IMAGE로 ghcr의 <커밋 sha> 이미지를 준다(#18). 없으면 로컬에서 빌드한다.
+    image: ${METRICS_IMAGE:-metrics-web:latest}
     env_file: [.env]
     environment:
       DJANGO_DEBUG: "0"
@@ -38,8 +39,7 @@ services:
   # web과 같은 이미지. `run_scheduler`가 시작 즉시 한 번, 이후 SCHEDULER_INTERVAL초마다
   # backend/services/scheduler.py의 COMMANDS를 차례로 부른다. 한 명령의 실패는 기록만 하고 계속한다.
   scheduler:
-    image: metrics-web:latest
-    pull_policy: never  # `compose build web`이 만든다
+    image: ${METRICS_IMAGE:-metrics-web:latest}
     command: ["python", "manage.py", "run_scheduler"]
     env_file: [.env]
     environment:
