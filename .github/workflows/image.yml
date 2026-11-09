@@ -1,14 +1,16 @@
 # 배포 이미지(#30): main push마다 linux/arm64 이미지를 GitHub 호스팅 arm64 실행기에서 네이티브로 굽고 ghcr에 올린다.
-# Jenkins `sandcorp-metrics`는 굽지 않고, 이 태그가 ghcr에 나타날 때까지 기다렸다가(jenkins-shared waitForGhcrImage, 상한 30분) oracle에 배포한다.
+# main push에서는 release.yml이 검사 통과 뒤 workflow_call로 부른다(#32). 이미지가 모두 오르면 release.yml이 production을 승격하고,
+# Jenkins `sandcorp-metrics`는 production 머리의 이 태그를 받아(jenkins-shared sandcorpDeploy deployFrom, 상한 5분) oracle에 배포한다.
 #
 # 보안 규칙(공개 저장소):
-#   - push: main(+수동 실행)만. pull_request·pull_request_target으로 이미지를 굽거나 올리지 않는다.
+#   - main push의 release.yml(workflow_call)과 수동 실행만. pull_request·pull_request_target으로 이미지를 굽거나 올리지 않는다.
 #   - packages: write는 이 워크플로에만. 로그인은 GITHUB_TOKEN 하나, 다른 secrets 없음.
 #   - self-hosted·QEMU 없음. 액션은 공식(actions/*·docker/*)만, SHA 고정.
 #   - build-args는 비밀이 아니다(AUTHKIT_VIA_HTTPS=1: 공개 저장소 sandcorp-auth를 https로 받기). 로그는 공개다.
 #
 # 이미지마다 잡 하나(strategy.matrix.include, fail-fast: false) — 이 저장소는 하나지만, 이미지가 여럿인 저장소에
-# 펼칠 때 include에 한 줄씩(name·dockerfile·context·build_args) 더하면 된다. Jenkins는 그 목록 전부를 기다린다.
+# 펼칠 때 include에 한 줄씩(name·dockerfile·context·build_args) 더하면 된다. 승격은 그 잡 전부가 통과해야 하고,
+# 같은 목록을 rollback-production.yml의 IMAGES와 Jenkinsfile의 images에도 적는다.
 #
 # 이미지 이름·태그·라벨은 scripts/ci/build-image.sh(옛 Jenkins 빌드 경로)와 같다:
 #   ghcr.io/sandcorporation/<name>:<커밋 sha 40자>, provenance 없음, 라벨 source·revision.
@@ -16,8 +18,7 @@
 name: image
 
 on:
-  push:
-    branches: [main]
+  workflow_call:
   workflow_dispatch:
 
 permissions:
