@@ -18,7 +18,7 @@ Single-context: one `GLOSSARY.md` + `docs/adr/` at the repo root. See `docs/agen
 
 - 스펙은 #1, 티켓은 그 하위 이슈다.
 - 이슈마다 워크트리 `~/workspace/sandcorp-metrics-wt/<브랜치>`에서 작업하고 `origin/main`으로 PR을 연다.
-- PR CI는 없다. 로컬에서 `make check`(린트·타입·시험)가 통과하면 작업자가 바로 squash 병합한다(main 직접 push 금지).
+- PR 검사는 GitHub Actions `pr-check`(`.github/workflows/pr-check.yml`, `pull_request` — 린트·타입·시험·승격 스크립트 시험). 초록이면 작업자가 바로 squash 병합한다(main 직접 push 금지).
 - main에 병합하면 GitHub Actions `release.yml`이 검사 ∥ 이미지 → `production` 브랜치 승격을 하고, Jenkins(잡 `sandcorp-metrics`, `oracle` 에이전트)는 production push만 받아 배포한다(#32). production 머리 = 운영 버전. 배포 잡과 서버 설정(env 파일, sandcorp-auth 클라이언트·리소스 등록, NPMplus, DNS, OCI)은 조율자가 다룬다. 작업자는 원격 호스트에 쓰지 않는다.
 - 비밀 값(.env, 클라이언트 시크릿, DB 비밀번호)은 저장소에 두지 않는다. 새 설정 키는 `.env.example`에 한 줄 설명과 함께 더한다(`tests/test_settings_env.py`가 본다).
 - 용어는 `GLOSSARY.md`, 결정은 `docs/adr/`를 따른다.
