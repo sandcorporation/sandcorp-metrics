@@ -3,7 +3,21 @@
 oracle(aarch64, 4코어)은 운영 서비스 여럿이 CPU를 나눠 쓴다. 배포마다 거기서 이미지를 빌드하면 다른 서비스가 느려진다.
 그래서 **이미지는 다른 노드에서 굽고 ghcr에 올리며, oracle은 받아서 교체만 한다.** 패턴 원본은 `sandcorporation/AI-Trend-News`의 `docs/ops/offhost-build.md`(#142)이고 이 저장소는 그대로 옮겼다.
 
-## 흐름
+## 지금: GitHub Actions가 굽는다 (#30, 2026-11-09 시범)
+
+```
+main push ─┬▶ Actions image.yml (ubuntu-24.04-arm, 네이티브 arm64) ─▶ ghcr.io/sandcorporation/sandcorp-metrics:<sha>
+           └▶ Jenkins sandcorp-metrics → oracle: waitForGhcrImage(10초 간격, 상한 30분) → pull → migrate·교체·헬스
+```
+
+- 워크플로 `.github/workflows/image.yml`: `push: main`(+수동)만, `permissions: contents: read, packages: write`, `GITHUB_TOKEN` 로그인, 액션 SHA 고정, 빌드 인자 `AUTHKIT_VIA_HTTPS=1`(공개 저장소 sandcorp-auth를 SSH 키 없이 https로 — 비밀 아님).
+- 이미지마다 잡 하나(`strategy.matrix.include`, `fail-fast: false`). 이미지가 여럿인 저장소는 include에 한 줄씩 더하고 Jenkinsfile의 `ACTIONS_IMAGES`에도 같은 이름을 더한다 — Jenkins는 목록 전부를 기다린다.
+- 태그·라벨은 옛 경로와 같다(`<sha 40자>`, `org.opencontainers.image.source`·`revision`, provenance 없음). 빌드 캐시는 같은 패키지의 `:buildcache` 태그(레지스트리 캐시, mode=max).
+- Jenkins는 굽지 않는다. 대기 단계는 jenkins-shared `waitForGhcrImage`(oracle 호스트 docker의 ghcr 읽기 로그인). 30분 안에 태그가 안 생기면(워크플로 실패 등) 배포 실패로 끝난다 — Actions 실행 결과를 본다.
+- GITHUB_TOKEN으로 push하려면 ghcr 패키지 `sandcorp-metrics`의 「Manage Actions access」에 이 저장소가 Write로 있어야 한다.
+- **되돌리기**: Jenkins 「Build with Parameters」에서 `BUILD_ON=jenkins` — 아래 옛 경로로 굽는다. 영구히 되돌리려면 `Jenkinsfile`의 `BUILD_ON` 선택지 순서를 `['jenkins', 'actions']`로 바꾼다(한 줄).
+
+## 옛 경로: Jenkins가 oracle 밖에서 굽는다 (`BUILD_ON=jenkins`)
 
 ```
 main push ─▶ 이미지 빌드 ───────────────────▶ 배포(oracle)
@@ -22,9 +36,10 @@ main push ─▶ 이미지 빌드 ───────────────�
 
 | 이름 | 기본 | 뜻 |
 |---|---|---|
+| `BUILD_ON` | `actions` | `actions` = Actions가 구운 태그를 기다려 배포 / `jenkins` = 옛 경로(아래 `BUILDER`)로 굽는다 |
 | `BUILDER` | `auto` | `auto` / `macos` / `home` — 시험용으로 빌드 노드를 강제 |
 | `MAC_WAIT_SECONDS` | `180` | auto에서 macos 실행기를 기다리는 시간. 넘으면 home |
-| `ROLLBACK_SHA` | 빈 값 | 채우면 빌드 없이 그 커밋의 이미지로 되돌린다 |
+| `ROLLBACK_SHA` | 빈 값 | 채우면 빌드·대기 없이 그 커밋의 이미지로 되돌린다 |
 
 ## 이전 sha로 되돌리기
 

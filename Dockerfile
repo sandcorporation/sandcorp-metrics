@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-# 이미지 하나(web·scheduler 공용). oracle(arm64)에서 Jenkins가 네이티브로 빌드하고, 로컬 확인용으로 x86에서도 빌드된다.
+# 이미지 하나(web·scheduler 공용). main push마다 GitHub Actions(ubuntu-24.04-arm)가 arm64로 굽고(#30), 로컬 확인용으로 x86에서도 빌드된다.
 # 프런트 번들은 없다. 정적 파일(admin, 이후 m.js)은 collectstatic 결과를 whitenoise가 낸다.
 
 # Python 의존성. mysqlclient는 Linux 휠이 없어 여기서 MariaDB Connector/C 헤더
@@ -21,7 +21,13 @@ ENV UV_PROJECT_ENVIRONMENT=/opt/venv \
     UV_PYTHON_DOWNLOADS=never
 WORKDIR /app/backend
 COPY backend/pyproject.toml backend/uv.lock backend/.python-version ./
-RUN --mount=type=ssh uv sync --frozen --no-dev --no-install-project
+# AUTHKIT_VIA_HTTPS=1(GitHub Actions 이미지 워크플로): sandcorp-auth가 공개라 SSH 키 없이 https로 받는다. 값은 비밀이 아니다.
+# 비어 있으면(Jenkins·make prod-local) 지금처럼 ssh 마운트로 받는다.
+ARG AUTHKIT_VIA_HTTPS=
+RUN --mount=type=ssh if [ -n "$AUTHKIT_VIA_HTTPS" ]; then \
+      git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"; \
+    fi \
+ && uv sync --frozen --no-dev --no-install-project
 
 FROM python:3.14-slim AS runtime
 # libmariadb3: mysqlclient가 링크하는 클라이언트 라이브러리.
