@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# linux/arm64 배포 이미지를 굽고 ghcr 에 올린다(#18). 옛 경로: Jenkinsfile 이 BUILD_ON=jenkins 일 때 macos 또는 home 에서 부른다(기본은 GitHub Actions image.yml, #30).
+# linux/arm64 배포 이미지를 굽고 ghcr 에 올린다(#18). 비상 길: Jenkins 파라미터 BUILD_ON=jenkins 일 때 sandcorpDeploy buildScript 로 macos 또는 home 에서 부른다(기본은 GitHub Actions image.yml, #30·#32).
 #
 #   scripts/ci/build-image.sh <macos|home>
 #
