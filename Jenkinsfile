@@ -1,7 +1,13 @@
-// main에 푸시하면: 이미지를 oracle 밖에서 굽고(mac 우선, 못 잡으면 home) ghcr에 올린 뒤, oracle은 받아서 교체만 한다(#18).
-// 패턴 설명·다른 저장소로 옮기는 법: docs/ops/offhost-build.md
+@Library('sandcorp') _
+
+// main에 푸시하면: GitHub Actions(.github/workflows/image.yml, ubuntu-24.04-arm)가 이미지를 구워 ghcr에 올리고(#30),
+// 여기서는 oracle에서 그 태그가 나타날 때까지 기다렸다가(jenkins-shared waitForGhcrImage, 상한 30분) 받아서 교체만 한다.
+// 파라미터 BUILD_ON=jenkins면 옛 경로(#18): oracle 밖에서 굽는다(mac 우선, 못 잡으면 home).
+// 패턴 설명·되돌리는 법: docs/ops/offhost-build.md
 //
-//   이미지 빌드   macos(M4, arm64 네이티브) → 3분(MAC_WAIT_SECONDS) 안에 실행기를 못 잡으면 home(built-in, QEMU).
+//   이미지 빌드   BUILD_ON=actions(기본): Jenkins는 굽지 않는다.
+//                 BUILD_ON=jenkins:
+//                 macos(M4, arm64 네이티브) → 3분(MAC_WAIT_SECONDS) 안에 실행기를 못 잡으면 home(built-in, QEMU).
 //                 넘어가는 건 「노드를 못 잡았을 때」뿐이다 — mac에서 빌드가 실패하면 실패로 끝낸다.
 //   배포(oracle)  굽지 않는다. ghcr.io/sandcorporation/sandcorp-metrics:<커밋 sha>를 pull해 migrate·교체·헬스 확인.
 //
@@ -10,6 +16,8 @@
 // Jenkins 스크립트 승인이 필요한 API(Jenkins.instance 등)를 쓰지 않는다 — 표준 단계만.
 
 def IMAGE_REPO = 'ghcr.io/sandcorporation/sandcorp-metrics'
+// Actions 이미지 워크플로(matrix)가 굽는 이미지 전부. 배포 전에 이 목록이 모두 ghcr에 생길 때까지 기다린다.
+def ACTIONS_IMAGES = [IMAGE_REPO]
 
 // 이 노드에서 체크아웃하고 이미지를 굽는다. where = macos | home. 커밋 sha는 env.DEPLOY_SHA에 남긴다.
 def buildImage(String where) {
@@ -36,6 +44,7 @@ pipeline {
   }
 
   parameters {
+    choice(name: 'BUILD_ON', choices: ['actions', 'jenkins'], description: 'actions=GitHub Actions가 구운 이미지를 기다려 배포(기본, #30). jenkins=옛 경로로 mac/home에서 굽는다(되돌리기)')
     choice(name: 'BUILDER', choices: ['auto', 'macos', 'home'], description: 'auto=macos 먼저, 못 잡으면 home. 시험용으로 강제 선택')
     string(name: 'MAC_WAIT_SECONDS', defaultValue: '180', description: 'auto에서 macos 실행기를 기다리는 시간(초). 넘으면 home')
     string(name: 'ROLLBACK_SHA', defaultValue: '', description: '비우지 않으면 빌드 없이 이 커밋 sha의 이미지(ghcr)로 되돌린다 — docs/ops/offhost-build.md')
@@ -47,7 +56,7 @@ pipeline {
 
   stages {
     stage('이미지 빌드') {
-      when { expression { !params.ROLLBACK_SHA?.trim() } }
+      when { expression { !params.ROLLBACK_SHA?.trim() && params.BUILD_ON == 'jenkins' } }
       steps {
         script {
           def b = params.BUILDER
@@ -94,14 +103,23 @@ pipeline {
       agent { label 'oracle' }
       steps {
         script {
-          def sha = params.ROLLBACK_SHA?.trim() ?: env.DEPLOY_SHA
           // 배포 스크립트·compose는 이 빌드의 커밋 것을 쓴다(되돌릴 때는 지금 main 것 + 옛 이미지).
           def scmVars = checkout scm
-          if (!params.ROLLBACK_SHA?.trim() && scmVars.GIT_COMMIT != sha) {
+          def rollback = params.ROLLBACK_SHA?.trim()
+          if (!rollback && params.BUILD_ON != 'jenkins') {
+            // Actions가 굽는다: 이 커밋의 태그가 ghcr에 나타날 때까지 기다린다(oracle의 ghcr 읽기 로그인으로).
+            env.DEPLOY_SHA = scmVars.GIT_COMMIT
+            env.BUILT_ON = 'actions'
+            currentBuild.description = "${env.DEPLOY_SHA.take(12)} · 빌드 actions 대기"
+            waitForGhcrImage(images: ACTIONS_IMAGES.collect { "${it}:${env.DEPLOY_SHA}" }, timeoutMinutes: 30, intervalSeconds: 10,
+                             hint: 'https://github.com/sandcorporation/sandcorp-metrics/actions/workflows/image.yml')
+          }
+          def sha = rollback ?: env.DEPLOY_SHA
+          if (!rollback && scmVars.GIT_COMMIT != sha) {
             sh "git checkout -q --detach ${sha}"
           }
           env.METRICS_IMAGE = "${IMAGE_REPO}:${sha}"
-          currentBuild.description = "${sha.take(12)} · " + (params.ROLLBACK_SHA?.trim() ? '되돌리기' : "빌드 ${env.BUILT_ON}") + ' · oracle pull'
+          currentBuild.description = "${sha.take(12)} · " + (rollback ? '되돌리기' : "빌드 ${env.BUILT_ON}") + ' · oracle pull'
           echo "== oracle은 굽지 않는다: ${env.METRICS_IMAGE} 를 pull"
           sh 'COMPOSE_PROJECT_NAME=metrics COMPOSE_FILE=docker-compose.prod.yml:docker-compose.oracle.yml bash deploy/deploy.sh'
         }
