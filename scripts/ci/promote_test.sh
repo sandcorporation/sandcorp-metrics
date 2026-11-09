@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/ci/promote.sh 시험 — 로컬 bare 저장소를 origin으로, docker는 가짜로. 네트워크·토큰 없음.
+# scripts/ci/promote.sh 시험 — 로컬 bare 저장소를 origin으로. 네트워크·토큰 없음.
 #   bash scripts/ci/promote_test.sh
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -18,15 +18,6 @@ git push -q origin HEAD:main
 git checkout -q --detach "$A"
 X=$(commit x)  # main 밖 커밋
 git checkout -q main
-
-# 가짜 docker: $tmp/images 에 적힌 이미지만 있다.
-cat > "$tmp/docker" <<EOF
-#!/usr/bin/env bash
-[ "\$1 \$2" = "manifest inspect" ] && grep -qxF "\$3" "$tmp/images"
-EOF
-chmod +x "$tmp/docker"
-: > "$tmp/images"
-export DOCKER="$tmp/docker" PROMOTE_IMAGES="ghcr.io/o/web ghcr.io/o/api"
 
 pass=0 fail=0
 head_of() { git ls-remote --heads origin "refs/heads/production" | awk '{print $1}'; }
@@ -48,13 +39,6 @@ check 'fast-forward' 0 "$C" 'fast-forward' bash "$promote" ff "$C"
 check '늦게 끝난 옛 실행은 건너뜀' 0 "$C" '건너뜀' bash "$promote" ff "$B"
 check '갈라진 sha 는 실패' 1 "$C" '갈라졌다' bash "$promote" ff "$X"
 check 'sha 모양 검사' 2 "$C" '40자' bash "$promote" ff "${C:0:12}"
-check '모르는 모드' 2 "$C" '쓰는 법' bash "$promote" force "$C"
-check '되돌리기: main 밖 sha 거절' 1 "$C" 'main 이력에 없다' bash "$promote" rollback "$X"
-echo "ghcr.io/o/web:$A" >> "$tmp/images"
-check '되돌리기: 이미지 하나라도 없으면 거절' 1 "$C" 'ghcr.io/o/api:'"$A" bash "$promote" rollback "$A"
-echo "ghcr.io/o/api:$A" >> "$tmp/images"
-check '되돌리기: 옛 sha 로 강제 이동' 0 "$A" '되돌리기' bash "$promote" rollback "$A"
-check '되돌린 뒤 새 main 은 다시 fast-forward' 0 "$C" 'fast-forward' bash "$promote" ff "$C"
-
+check '모르는 모드(rollback 없음)' 2 "$C" '쓰는 법' bash "$promote" rollback "$A"
 echo "promote.sh 시험: 통과 $pass, 실패 $fail"
 [ "$fail" = 0 ]
