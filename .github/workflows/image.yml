@@ -10,7 +10,7 @@
 #
 # 이미지마다 잡 하나(strategy.matrix.include, fail-fast: false) — 이 저장소는 하나지만, 이미지가 여럿인 저장소에
 # 펼칠 때 include에 한 줄씩(name·dockerfile·context·build_args) 더하면 된다. 승격은 그 잡 전부가 통과해야 하고,
-# 같은 목록을 rollback-production.yml의 IMAGES와 Jenkinsfile의 images에도 적는다.
+# 같은 목록을 Jenkinsfile의 images에도 적는다.
 #
 # 이미지 이름·태그·라벨은 scripts/ci/build-image.sh(옛 Jenkins 빌드 경로)와 같다:
 #   ghcr.io/sandcorporation/<name>:<커밋 sha 40자>, provenance 없음, 라벨 source·revision.

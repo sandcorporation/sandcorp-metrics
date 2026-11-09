@@ -6,7 +6,8 @@
 #   image   needs check. image.yml(workflow_call) — 이미지마다 matrix 잡 하나, ghcr <이미지>:<sha>.
 #   promote needs check·image. production을 이 sha로 fast-forward만(scripts/ci/promote.sh ff).
 #           production이 이미 더 새 판이면(옛 실행이 늦게 끝남) 실패가 아니라 건너뜀.
-# 되돌리기는 rollback-production.yml(수동, 입력 sha).
+# production은 앞으로만 간다(ruleset: 강제 push·삭제 금지). 되돌리기는 main에 revert PR — 이 흐름을 그대로 탄다.
+# 급하면 Jenkins ROLLBACK_SHA(production은 그대로) — docs/ops/offhost-build.md
 #
 # 보안 규칙(공개 저장소):
 #   - push: main만. pull_request·pull_request_target 없음. GitHub 호스팅 실행기만. 액션은 SHA 고정. 다른 secrets 없음.
@@ -40,7 +41,7 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: write
-    # 승격·되돌리기가 겹치지 않게 저장소 전체에서 하나씩(rollback-production.yml과 같은 그룹). 끊지 않고 줄 세운다 —
+    # 승격이 겹치지 않게 저장소 전체에서 하나씩. 끊지 않고 줄 세운다 —
     # 기다리는 실행이 둘이면 GitHub이 앞 것을 취소한다(뒤 것이 더 새 sha라 괜찮다).
     concurrency:
       group: production-branch

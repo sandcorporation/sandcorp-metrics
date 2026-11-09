@@ -9,8 +9,8 @@
 // 규칙은 jenkins-shared sandcorpDeploy(deployFrom) — README 「승격 브랜치에서 배포」. 파라미터:
 //   BUILD_ON=jenkins  비상 길: Actions가 못 구울 때 oracle 밖(macos, MAC_WAIT_SECONDS 안에 못 잡으면 home)에서
 //                     scripts/ci/build-image.sh로 굽고 배포한다(#18). 이 길로 올린 sha는 production 머리 그대로다.
-//   ROLLBACK_SHA      빌드 없이 그 sha의 이미지로 배포(지금 production의 compose·스크립트 + 옛 이미지).
-//                     production 자체를 옛 sha로 옮기려면 Actions rollback-production.yml — docs/ops/offhost-build.md
+//   ROLLBACK_SHA      비상 되돌리기: 빌드 없이 그 sha의 이미지로 배포(지금 production의 compose·스크립트 + 옛 이미지).
+//                     production은 그대로라 다음 승격이 다시 앞으로 간다. 정석은 main에 revert PR — docs/ops/offhost-build.md
 //
 // .env는 여기서 만들지 않는다. oracle 워크스페이스에 놓아 둔 것을 compose가 ./.env로 읽는다
 // (oracle 호스트의 /var/jenkins_home/workspace/sandcorp-metrics/.env).
