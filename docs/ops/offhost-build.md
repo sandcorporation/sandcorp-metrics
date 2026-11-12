@@ -3,7 +3,7 @@
 oracle(aarch64, 4코어)은 운영 서비스 여럿이 CPU를 나눠 쓴다. 배포마다 거기서 이미지를 빌드하면 다른 서비스가 느려진다.
 그래서 **이미지는 다른 노드에서 굽고 ghcr에 올리며, oracle은 받아서 교체만 한다.** 패턴 원본은 `sandcorporation/AI-Trend-News`의 `docs/ops/offhost-build.md`(#142)이고 이 저장소는 그대로 옮겼다.
 
-## 지금: Actions가 검사·굽고 production을 승격, Jenkins는 production만 배포 (#32, 2026-11-09)
+## Actions가 검사·굽고 production을 승격, Jenkins는 production만 배포
 
 ```
 PR ─▶ pr-check(Actions) ─▶ main 병합
@@ -20,7 +20,7 @@ production push(웹훅) ─▶ Jenkins sandcorp-metrics(잡 브랜치 */producti
 - GITHUB_TOKEN의 push는 다른 워크플로를 깨우지 않는다(production push로 Actions가 다시 돌지 않는다). 저장소 웹훅은 깨운다 — Jenkins `githubPush`가 그것을 받는다.
 - main push도 웹훅으로 Jenkins를 깨우지만 production이 움직이지 않았으면 「이미 배포에 성공한 sha」로 `NOT_BUILT`.
 - Jenkins 쪽 규칙은 jenkins-shared `sandcorpDeploy(deployFrom: 'production')`(README 「승격 브랜치에서 배포」). 배포 결과는 커밋 상태 `sandcorp/deploy`·실패 PR 댓글·디스코드 `[Metrics]`로 남는다. 자동 롤백은 끔(`autoRollback: false` — `deploy/deploy.sh`가 되돌리기 재실행을 감당하지 않는다).
-- 이미지 워크플로: 이미지마다 잡 하나(`strategy.matrix.include`, `fail-fast: false`). 이미지가 여럿인 저장소는 include에 한 줄씩 더하고 같은 목록을 `Jenkinsfile`의 `images`에도 적는다. 빌드 인자 `AUTHKIT_VIA_HTTPS=1`(공개 저장소 sandcorp-auth를 https로 — 비밀 아님), 캐시는 같은 패키지의 `:buildcache` 태그.
+- 이미지 워크플로: 이미지마다 잡 하나(`strategy.matrix.include`, `fail-fast: false`). 이미지가 여럿인 저장소는 include에 한 줄씩 더한다. Jenkinsfile의 `images`는 배포할 GHCR 이미지 주소와 compose 환경변수를 지정하며, Jenkins는 해당 태그가 GHCR에 있는지 확인하고 pull한다. 빌드 인자 `AUTHKIT_VIA_HTTPS=1`(공개 저장소 sandcorp-auth를 https로 — 비밀 아님), 캐시는 같은 패키지의 `:buildcache` 태그.
 - GITHUB_TOKEN으로 push하려면 ghcr 패키지 `sandcorp-metrics`의 「Manage Actions access」에 이 저장소가 Write로 있어야 한다.
 - 보안: `pull_request_target` 없음, GitHub 호스팅 실행기만, 액션 SHA 고정, GITHUB_TOKEN 말고 secrets 없음, 워크플로 기본 권한 없음(잡마다 최소).
 - production 브랜치 보호: ruleset `production: ff만`(조율자가 건다) — 강제 push(`non_fast_forward`)·삭제(`deletion`) 금지, bypass는 조직 관리자만. **production은 앞으로만 간다.**
@@ -44,31 +44,15 @@ J
 ```
    `update` 규칙(push 자체 금지)은 걸지 않는다 — GitHub Actions를 bypass로 둘 수 없어 승격까지 막힌다.
 
-## 비상 길: Jenkins가 oracle 밖에서 굽는다 (`BUILD_ON=jenkins`)
+## Jenkins 배포와 이미지 보장
 
-Actions가 못 구울 때 Jenkins 「Build with Parameters」에서 `BUILD_ON=jenkins`. 지금 production 머리를 굽고 배포한다(검사·대기 없음).
+Jenkins는 이미지를 만들거나 검사하지 않는다. `sandcorpDeploy(deployFrom: 'production')`는 production sha의 이미지가 Actions에서 게시되어 GHCR에 보일 때까지 최대 5분 기다린 뒤 oracle에서 pull해 배포한다. 누락된 이미지면 배포 단계 전에 실패하고 Actions workflow 링크를 안내한다. Jenkins 빌드 노드 선택이나 이미지 빌드 파라미터는 없다.
 
-```
-production ─▶ 이미지 빌드 ─────────────────▶ 배포(oracle)
-             macos (arm64 네이티브)             docker pull ghcr.io/sandcorporation/sandcorp-metrics:<sha>
-             └ 3분 안에 실행기를 못 잡으면       wait_for_db → migrate → web·scheduler 교체 → 헬스 확인
-               home(built-in, QEMU로 arm64)       (빌드 없음)
-```
+`Jenkinsfile`의 `images` 목록은 배포 단계가 기다리고 pull할 GHCR 저장소와 compose 환경변수(`METRICS_IMAGE`)를 연결한다. GHCR 쓰기는 Actions의 `GITHUB_TOKEN`만 사용하고 oracle은 호스트에 설정된 GHCR 읽기 로그인을 쓴다. 운영에서는 `METRICS_IMAGE`를 반드시 전달해 pull한 이미지를 사용한다. `make prod-local`은 별도의 로컬 확인 경로로 이미지를 빌드할 수 있다.
 
-- **노드를 못 잡았을 때만** home로 넘어간다. macos에서 빌드가 실패하면 실패로 끝낸다.
-- 빌드 노드는 콘솔(`== 빌드 노드: macos (...)`)·빌드 설명(`<sha12> · 빌드 macos · oracle pull`)·디스코드 알림에 남는다.
-- 이미지: `ghcr.io/sandcorporation/sandcorp-metrics:<커밋 sha 40자>`. 빌드 캐시는 `sandcorp-metrics-buildcache:arm64`(레지스트리).
-- 스크립트 `scripts/ci/build-image.sh <macos|home>`(Jenkinsfile의 `buildScript`), 단계 정의는 jenkins-shared `sandcorpDeploy`, 이미지 변수는 `METRICS_IMAGE`(compose의 `image:`와 `deploy/deploy.sh`). 변수가 없으면(`make prod-local`) 로컬에서 빌드한다.
-- 자격: ghcr 쓰기 `ghcr-push-token`, 비공개 의존성(sandcorp-authkit)용 SSH `github-farrar142`. oracle은 호스트 docker 설정의 ghcr **읽기** 로그인을 쓴다.
+## 배포 파라미터
 
-## 파라미터
-
-| 이름 | 기본 | 뜻 |
-|---|---|---|
-| `BUILD_ON` | `actions` | `actions` = Actions가 구워 승격한 production 머리의 이미지를 받아 배포 / `jenkins` = 비상 길(`BUILDER`)로 굽는다 |
-| `BUILDER` | `auto` | `auto` / `macos` / `home` — 시험용으로 빌드 노드를 강제 |
-| `MAC_WAIT_SECONDS` | `180` | auto에서 macos 실행기를 기다리는 시간. 넘으면 home |
-| `ROLLBACK_SHA` | 빈 값 | 비상 되돌리기: 채우면 빌드 없이 그 커밋의 이미지로 배포한다(production은 그대로) |
+Jenkins의 유일한 이미지 관련 수동 입력은 `ROLLBACK_SHA`다. 지정하면 검증·빌드 없이도 GHCR에 이미 게시된 sha 이미지를 기존 production compose·배포 절차로 적용한다. 해당 이미지가 없으면 배포 전에 실패한다. 정석은 main에 revert PR을 넣어 Actions 검사·이미지 게시·production 승격 과정을 다시 통과하는 것이다.
 
 ## 이전 sha로 되돌리기
 
@@ -76,7 +60,7 @@ production은 앞으로만 간다(강제 push 금지). 그래서 되돌리기도
 
 **정석: main에 revert PR.** `git revert <나쁜 커밋>` → PR → pr-check 초록 → 병합. release.yml이 검사 ∥ 이미지 → 승격(fast-forward)을 그대로 밟고 Jenkins가 그 sha를 배포한다(병합부터 승격까지 1분 30초 안팎 + 배포 1분 안팎). 운영과 main이 어긋나지 않는다.
 
-**급할 때(검사·이미지를 기다릴 수 없을 때): Jenkins `ROLLBACK_SHA`.** `sandcorp-metrics` 「Build with Parameters」 → `ROLLBACK_SHA=<되돌릴 커밋 sha 40자>`. 굽기·검사 없이 ghcr에 그 sha 이미지가 있는지 보고(상한 5분) 지금 production의 compose·스크립트로 배포한다.
+**급할 때(검사·이미지를 기다릴 수 없을 때): Jenkins `ROLLBACK_SHA`.** `sandcorp-metrics` 「Build with Parameters」 → `ROLLBACK_SHA=<되돌릴 커밋 sha 40자>`. 이 sha 이미지가 GHCR에 있는지 확인하고(상한 5분) 지금 production의 compose·스크립트로 배포한다.
 - production은 그대로라 다음 승격(main 병합)이 다시 앞으로 간다 — 곧바로 revert PR을 넣어 main을 맞춘다.
 - ghcr에 그 sha 이미지가 있어야 한다(oracle에는 최신 3개만 남긴다).
 
@@ -85,6 +69,4 @@ production은 앞으로만 간다(강제 push 금지). 그래서 되돌리기도
 ## 주의점
 
 - Jenkins 스크립트 승인이 필요한 API(`Jenkins.instance` 등)를 쓰지 않는다.
-- macos 실행기는 1개이고 다른 열차와 나눠 쓴다. 대기가 3분을 넘으면 home로 간다.
 - 배포 단계의 체크아웃은 `sandcorp-metrics` 워크스페이스(`.env`가 있는 곳)를 그대로 쓴다.
-- 빌드 노드의 `buildx`에 `docker-container` 빌더가 필요하다(스크립트가 `metrics-images`를 만든다).

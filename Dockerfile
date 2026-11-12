@@ -22,7 +22,7 @@ ENV UV_PROJECT_ENVIRONMENT=/opt/venv \
 WORKDIR /app/backend
 COPY backend/pyproject.toml backend/uv.lock backend/.python-version ./
 # AUTHKIT_VIA_HTTPS=1(GitHub Actions 이미지 워크플로): sandcorp-auth가 공개라 SSH 키 없이 https로 받는다. 값은 비밀이 아니다.
-# 비어 있으면(Jenkins·make prod-local) 지금처럼 ssh 마운트로 받는다.
+# 비어 있으면(make prod-local) ssh 마운트로 받는다.
 ARG AUTHKIT_VIA_HTTPS=
 RUN --mount=type=ssh if [ -n "$AUTHKIT_VIA_HTTPS" ]; then \
       git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"; \

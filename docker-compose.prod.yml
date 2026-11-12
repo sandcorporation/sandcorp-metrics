@@ -13,7 +13,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    # 운영(oracle)은 Jenkins가 METRICS_IMAGE로 ghcr의 <커밋 sha> 이미지를 준다(#18). 없으면 로컬에서 빌드한다.
+    # 운영 배포는 Jenkins가 Actions에서 GHCR에 게시한 <커밋 sha> 이미지를 METRICS_IMAGE로 준다. 로컬 확인은 빌드한다.
     image: ${METRICS_IMAGE:-metrics-web:latest}
     env_file: [.env]
     environment:
