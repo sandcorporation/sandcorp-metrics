@@ -2,6 +2,8 @@
 {% block extrastyle %}{{ block.super }}
 <style>
   .metrics-summary table { width: 100%; table-layout: fixed; }
+  .metrics-summary h2.site, .metrics-summary caption { overflow-wrap: anywhere; word-break: break-word; }
+  .metrics-summary caption { text-transform: none; }
   .metrics-summary td.label { overflow-wrap: anywhere; word-break: break-word; }
   .metrics-summary .num { width: 7em; white-space: nowrap; text-align: right; }
 </style>
@@ -21,10 +23,10 @@
 </p>
 <div class="metrics-summary">
 {% for block in sites %}
-<h2>{{ block.site.name }} ({{ block.site.key }}){% if not block.site.is_active %} — 꺼짐{% endif %}</h2>
+<h2 class="site">{{ block.site.name }} ({{ block.site.key }})</h2>
 <div class="module">
   <table>
-    <caption>{{ block.site.name }} — 일별 (오늘은 실시간)</caption>
+    <caption>{{ block.site.name }} ({{ block.site.key }}) — 일별 (오늘은 실시간)</caption>
     <thead><tr><th>날짜</th><th class="num">조회</th><th class="num">방문자</th></tr></thead>
     <tbody>
     {% for row in block.daily %}
@@ -35,7 +37,7 @@
 </div>
 <div class="module">
   <table>
-    <caption>{{ block.site.name }} — 상위 경로 {{ limit }}</caption>
+    <caption>{{ block.site.name }} ({{ block.site.key }}) — 상위 경로 {{ limit }}</caption>
     <thead><tr><th>경로</th><th class="num">조회</th></tr></thead>
     <tbody>
     {% for row in block.paths %}
@@ -48,7 +50,7 @@
 </div>
 <div class="module">
   <table>
-    <caption>{{ block.site.name }} — 상위 리퍼러 {{ limit }} (직접·같은 사이트 제외)</caption>
+    <caption>{{ block.site.name }} ({{ block.site.key }}) — 상위 리퍼러 {{ limit }} (직접·같은 사이트 제외)</caption>
     <thead><tr><th>호스트</th><th class="num">조회</th></tr></thead>
     <tbody>
     {% for row in block.referrers %}
@@ -60,7 +62,7 @@
   </table>
 </div>
 {% empty %}
-<p>사이트가 없습니다.</p>
+<p>켜진 사이트가 없습니다.</p>
 {% endfor %}
 </div>
 {% endblock %}
