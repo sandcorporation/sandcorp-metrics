@@ -159,3 +159,14 @@ def test_header_has_no_view_site_link(owner: Client, site: Site) -> None:
     response = owner.get(URL)
     assert response.context["site_url"] is None
     assert 'href="/"' not in response.content.decode()
+
+
+@pytest.mark.parametrize(("days", "other"), [(7, 30), (30, 7)])
+def test_current_period_is_marked_for_screen_readers(
+    owner: Client, site: Site, days: int, other: int
+) -> None:
+    """#61: 굵은 글씨만으로는 낭독기가 현재 기간을 모른다."""
+    page = owner.get(URL, {"days": days}).content.decode()
+    assert re.search(rf'aria-current="page"[^>]*>최근 {days}일<', page)
+    assert f'<a href="?days={other}">최근 {other}일</a>' in page
+    assert not re.search(rf'aria-current="page"[^>]*>최근 {other}일<', page)
