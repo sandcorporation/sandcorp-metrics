@@ -2,6 +2,7 @@
 조회(PageView)·소금은 올리지 않는다."""
 
 from django.contrib import admin
+from django.core.exceptions import PermissionDenied
 from django.http import HttpRequest, HttpResponse
 from django.template.response import TemplateResponse
 from django.urls import URLPattern, path
@@ -29,6 +30,8 @@ class SiteAdmin(admin.ModelAdmin):  # type: ignore[type-arg]  # 런타임에 제
 
     def summary(self, request: HttpRequest) -> HttpResponse:
         """최근 7일/30일: 사이트별 일별 표·상위 경로·상위 리퍼러(사이트당 쿼리 4개)."""
+        if not self.has_view_permission(request):  # admin_view는 is_staff만 본다(#43)
+            raise PermissionDenied
         try:
             days = int(request.GET.get("days", SUMMARY_DAYS[0]))
         except ValueError:
