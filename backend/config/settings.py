@@ -85,7 +85,9 @@ DATABASES = {
         "PORT": env("DB_PORT", "3306"),
         "CONN_MAX_AGE": 60,
         "CONN_HEALTH_CHECKS": True,
-        "OPTIONS": {"charset": "utf8mb4"},
+        # 연결 시간 한도(초, #44): DB가 안 닿으면 헬스가 멈추지 않고 이 안에 503을 준다.
+        # wait_for_db는 시도마다 이 한도로 끊고 --timeout까지 다시 시도한다.
+        "OPTIONS": {"charset": "utf8mb4", "connect_timeout": int(env("DB_CONNECT_TIMEOUT", "5"))},
         "TEST": {"CHARSET": "utf8mb4", "COLLATION": "utf8mb4_0900_as_cs"},
     }
 }
