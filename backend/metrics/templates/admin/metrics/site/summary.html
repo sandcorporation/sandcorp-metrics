@@ -18,7 +18,7 @@
 <p>
   기간:
   {% for option in day_options %}
-    {% if option == days %}<strong>최근 {{ option }}일</strong>{% else %}<a href="?days={{ option }}">최근 {{ option }}일</a>{% endif %}{% if not forloop.last %} |{% endif %}
+    {% if option == days %}<strong aria-current="page">최근 {{ option }}일</strong>{% else %}<a href="?days={{ option }}">최근 {{ option }}일</a>{% endif %}{% if not forloop.last %} |{% endif %}
   {% endfor %}
 </p>
 <div class="metrics-summary">

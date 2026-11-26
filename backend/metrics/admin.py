@@ -7,6 +7,8 @@ from django.http import HttpRequest, HttpResponse
 from django.template.response import TemplateResponse
 from django.urls import URLPattern, path
 from django.utils import timezone
+from django.utils.html import format_html_join
+from django.utils.safestring import SafeString, mark_safe
 
 from metrics.models import DailyStat, Site
 from services import report
@@ -17,10 +19,23 @@ SUMMARY_LIMIT = 20
 
 @admin.register(Site)
 class SiteAdmin(admin.ModelAdmin):  # type: ignore[type-arg]  # 런타임에 제네릭 아님
-    list_display = ("key", "name", "allowed_hosts", "is_active", "created_at")
+    list_display = ("key", "name", "hosts", "is_active", "created_at")
     list_filter = ("is_active",)
     search_fields = ("key", "name")
     change_list_template = "admin/metrics/site/change_list.html"
+
+    @admin.display(description="허용 호스트", ordering="allowed_hosts")
+    def hosts(self, obj: Site) -> SafeString:
+        """쉼표 뒤에서 줄을 바꿀 수 있게(#61).
+
+        좁은 폭에서 긴 호스트 목록이 이름 열을 밀지 않는다."""
+        pieces = obj.allowed_hosts.split(",")
+        return format_html_join(mark_safe(",<wbr>"), "{}", ((piece,) for piece in pieces))
+
+    def get_readonly_fields(self, request: HttpRequest, obj: Site | None = None) -> tuple[str, ...]:
+        """키는 만들 때만 정한다(#61) — 바꾸면 붙여 둔 스니펫의 조회가 조용히 버려진다.
+        MCP `update_site`도 키를 바꾸지 못한다."""
+        return ("key",) if obj is not None else ()
 
     def has_delete_permission(self, request: HttpRequest, obj: Site | None = None) -> bool:
         """삭제는 열지 않는다(#47) — 일별 집계가 지워지지 않게. 정리는 끄기(`is_active`)."""

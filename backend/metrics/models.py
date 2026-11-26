@@ -26,7 +26,9 @@ def bad_host_pieces(value: str) -> list[str]:
 
 
 class Site(models.Model):
-    key = models.SlugField("키", max_length=50, unique=True, help_text="스니펫의 data-site 값")
+    key = models.SlugField(
+        "키", max_length=50, unique=True, help_text="만든 뒤 바꿀 수 없다 — 스니펫의 data-site 값"
+    )
     name = models.CharField("이름", max_length=100)
     allowed_hosts = models.CharField(
         "허용 호스트",
