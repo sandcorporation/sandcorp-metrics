@@ -5,7 +5,24 @@ IP·User-Agent·URL 원본은 저장하지 않는다(방문자는 하루 해시,
 리퍼러는 호스트만).
 """
 
+import re
+
+from django.core.exceptions import ValidationError
 from django.db import models
+
+# 허용 호스트 한 조각: 영숫자·하이픈 라벨을 점으로 잇고(라벨 끝은 하이픈 아님), 포트는 선택.
+# 대소문자·앞뒤 공백은 `host_set`이 정규화하므로 여기서는 소문자로 바꾼 뒤 본다.
+_LABEL = r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
+HOST_PIECE = re.compile(rf"{_LABEL}(?:\.{_LABEL})*(?::[0-9]{{1,5}})?")
+
+
+def bad_host_pieces(value: str) -> list[str]:
+    """호스트 형식이 아닌 조각(스킴·경로·`@`·빈 조각 등). 빈 조각은 `''`로 돌려준다."""
+    return [
+        piece.strip()
+        for piece in value.split(",")
+        if not HOST_PIECE.fullmatch(piece.strip().lower())
+    ]
 
 
 class Site(models.Model):
@@ -25,6 +42,20 @@ class Site(models.Model):
 
     def __str__(self) -> str:
         return f"{self.name} ({self.key})"
+
+    def clean(self) -> None:
+        """허용 호스트 형식(#42). 기존 행은 고쳐 저장할 때만 본다(마이그레이션 없음)."""
+        bad = bad_host_pieces(self.allowed_hosts)
+        if bad and self.allowed_hosts.strip():
+            shown = ", ".join(repr(piece) if piece else "빈 조각" for piece in bad)
+            raise ValidationError(
+                {
+                    "allowed_hosts": (
+                        f"호스트 형식이 아닙니다: {shown}. 스킴·경로 없이 호스트만"
+                        " 쉼표로 적습니다(예: a.kr,www.a.kr:8080)."
+                    )
+                }
+            )
 
     def host_set(self) -> frozenset[str]:
         """허용 호스트(소문자, 포트 없음)."""
