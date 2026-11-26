@@ -2,7 +2,8 @@
 
 기간은 오늘(Asia/Seoul)을 포함한 최근 `days`일이다. 범위는 `retention.day_start`로 만든
 aware datetime이다(MySQL 시간대 표에 기대지 않는다). `PageView`는 90일만 남는다.
-일별 표 쿼리는 2개(확정된 `DailyStat` + 오늘 실시간), 상위 목록은 각 1개.
+일별 표 쿼리는 2개(확정된 `DailyStat` + 그 뒤 집계가 아직 없는 날과 오늘을 조회에서 바로 센 것),
+상위 목록은 각 1개. 집계 없는 날의 셈은 `stats`와 같다(`retention.day_count_aggregates`, #41).
 """
 
 from dataclasses import dataclass
@@ -12,7 +13,7 @@ from django.db.models import Count
 from django.utils import timezone
 
 from metrics.models import DailyStat, PageView, Site
-from services.retention import day_start
+from services.retention import day_count_aggregates, day_counts, day_start, days_between
 
 MAX_DAYS = 90
 
@@ -42,10 +43,11 @@ def daily_rows(site: Site, days: int, now: datetime) -> list[DailyRow]:
         stat.date: (stat.pageviews, stat.visitors)
         for stat in DailyStat.objects.filter(site=site, date__gte=first, date__lt=today)
     }
-    todays = PageView.objects.filter(site=site, occurred_at__gte=day_start(today)).aggregate(
-        pageviews=Count("id"), visitors=Count("visitor", distinct=True)
-    )
-    known[today] = (todays["pageviews"], todays["visitors"])
+    # 기간 안 마지막 집계 뒤의 날은 아직 집계 전일 수 있어 조회에서 센다. 그 전에 행이 없는 날은
+    # 집계가 조회 없음으로 본 날이라 0이다.
+    unrolled = days_between(max(known) + timedelta(days=1) if known else first, today)
+    views = PageView.objects.filter(site=site, occurred_at__gte=day_start(unrolled[0]))
+    known.update(day_counts(views.aggregate(**day_count_aggregates(unrolled)), unrolled))
     rows = []
     for offset in range(days):
         day = first + timedelta(days=offset)
