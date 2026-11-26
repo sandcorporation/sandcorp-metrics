@@ -4,9 +4,10 @@
 aware datetime으로 만들어 UTC 저장값과 비교한다(MySQL 시간대 표에 기대지 않는다).
 """
 
+from collections.abc import Mapping, Sequence
 from datetime import date, datetime, time, timedelta
 
-from django.db.models import Count, Max, Min
+from django.db.models import Count, Max, Min, Q
 from django.utils import timezone
 
 from metrics.models import DailySalt, DailyStat, PageView
@@ -18,6 +19,36 @@ SALT_KEEP_DAYS = 2
 def day_start(day: date) -> datetime:
     """그날 0시(현지 시간대)의 aware datetime."""
     return timezone.make_aware(datetime.combine(day, time.min))
+
+
+def day_count_aggregates(days: Sequence[date]) -> dict[str, Count]:
+    """`PageView` 집계 한 번으로 하루마다 조회 수·고유 방문자 수를 세는 조건부 집계.
+
+    `rollup_daily`와 같은 셈(그날 0시부터 다음 날 0시 전, 방문자는 그날 안에서만 고유)이라
+    집계가 아직 없는 날을 이것으로 세면 집계 뒤 `DailyStat`과 같은 숫자가 나온다.
+    결과는 `day_counts`로 읽는다.
+    """
+    out: dict[str, Count] = {}
+    for i, day in enumerate(days):
+        within = Q(occurred_at__gte=day_start(day), occurred_at__lt=day_start(day + timedelta(1)))
+        out[f"day{i}_pageviews"] = Count("id", filter=within)
+        out[f"day{i}_visitors"] = Count("visitor", distinct=True, filter=within)
+    return out
+
+
+def day_counts(result: Mapping[str, object], days: Sequence[date]) -> dict[date, tuple[int, int]]:
+    """`day_count_aggregates` 결과를 날짜별 (조회 수, 고유 방문자 수)로."""
+    counts: dict[date, tuple[int, int]] = {}
+    for i, day in enumerate(days):
+        pageviews, visitors = result[f"day{i}_pageviews"], result[f"day{i}_visitors"]
+        assert isinstance(pageviews, int) and isinstance(visitors, int)
+        counts[day] = (pageviews, visitors)
+    return counts
+
+
+def days_between(first: date, last: date) -> list[date]:
+    """first부터 last까지(둘 다 포함) 날짜 목록."""
+    return [first + timedelta(days=n) for n in range((last - first).days + 1)]
 
 
 def rollup_daily(now: datetime) -> int:
