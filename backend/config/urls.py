@@ -11,6 +11,7 @@ from oauth.auth import protected_resource_metadata
 # 비밀번호 폼 없음: admin 로그인 화면은 sandcorp-auth 로그인의 시작이다.
 admin.site.login = oauth_login.admin_login  # type: ignore[method-assign]
 admin.site.site_header = admin.site.site_title = "Sandcorp Metrics"
+admin.site.site_url = None  # 공개 화면이 없다 — 「사이트 보기」 링크를 없앤다(#53).
 
 urlpatterns = [
     # sandcorp-auth admin 로그인(admin.site.urls의 catch-all보다 앞에 둔다).

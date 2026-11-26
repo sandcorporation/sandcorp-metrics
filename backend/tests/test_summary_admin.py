@@ -1,5 +1,6 @@
 """admin 요약 뷰: 대표 세션으로 200과 표 내용, 사이트당 쿼리 수."""
 
+import re
 from datetime import timedelta
 
 import pytest
@@ -49,7 +50,7 @@ def test_summary_shows_tables(owner: Client, site: Site) -> None:
     html = response.content.decode()
     assert response.status_code == 200
     assert "사이트A" in html and "/best" in html and "news.ycombinator.com" in html
-    assert "<td>42</td><td>7</td>" in html
+    assert '<td class="num">42</td><td class="num">7</td>' in html
     assert response.context["days"] == 7
     assert len(response.context["sites"][0]["daily"]) == 7
 
@@ -88,3 +89,30 @@ def test_staff_without_site_view_permission_gets_403(site: Site) -> None:
     allowed = Client()
     allowed.force_login(User.objects.get(pk=staff.pk))
     assert allowed.get(URL).status_code == 200
+
+
+def test_captions_name_the_site(owner: Client, site: Site) -> None:
+    """낭독기로 표를 건너뛰어도 어느 사이트 표인지 안다(#53)."""
+    Site.objects.create(key="b", name="사이트B", allowed_hosts="b.kr")
+    captions = re.findall(r"<caption>(.*?)</caption>", owner.get(URL).content.decode())
+    assert len(captions) == 6
+    assert all(c.startswith("사이트A — ") for c in captions[:3])
+    assert all(c.startswith("사이트B — ") for c in captions[3:])
+
+
+def test_long_labels_wrap_and_counts_stay_in_number_column(owner: Client, site: Site) -> None:
+    """긴 경로 하나가 표를 넓혀 숫자 열을 밀어내지 않는다(#53)."""
+    long_path = "/" + "x" * 400
+    PageView.objects.create(
+        site=site, occurred_at=timezone.now(), path=long_path, referrer_host="", visitor="v9"
+    )
+    html = owner.get(URL).content.decode()
+    assert f'<td class="label">{long_path}</td><td class="num">1</td>' in html
+    assert "table-layout: fixed" in html and "overflow-wrap: anywhere" in html
+
+
+def test_header_has_no_view_site_link(owner: Client, site: Site) -> None:
+    """「사이트 보기」는 `/`(Not Found)로 가므로 없앤다(#53)."""
+    response = owner.get(URL)
+    assert response.context["site_url"] is None
+    assert 'href="/"' not in response.content.decode()

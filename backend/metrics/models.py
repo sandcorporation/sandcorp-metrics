@@ -44,9 +44,16 @@ class Site(models.Model):
         return f"{self.name} ({self.key})"
 
     def clean(self) -> None:
-        """허용 호스트 형식(#42). 기존 행은 고쳐 저장할 때만 본다(마이그레이션 없음)."""
+        """허용 호스트 형식(#42). 비었거나 공백만이면 거절하고, 형식은 새로 정하거나 바꿀 때만
+        본다 — 바뀌지 않은 옛 행(#42 전 저장)도 끄기·이름 변경은 된다(#52, 마이그레이션 없음)."""
+        if not self.allowed_hosts.strip():
+            raise ValidationError({"allowed_hosts": "허용 호스트를 하나 이상 적습니다."})
+        if not self._state.adding and self.pk is not None:
+            saved = Site.objects.filter(pk=self.pk).values_list("allowed_hosts", flat=True).first()
+            if saved == self.allowed_hosts:
+                return
         bad = bad_host_pieces(self.allowed_hosts)
-        if bad and self.allowed_hosts.strip():
+        if bad:
             shown = ", ".join(repr(piece) if piece else "빈 조각" for piece in bad)
             raise ValidationError(
                 {
