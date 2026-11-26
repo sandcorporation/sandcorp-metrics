@@ -70,6 +70,34 @@ def test_normalize_masks_then_truncates() -> None:
     assert normalize_path("https://t.example/" + "x" * 600) == "/" + "x" * 511
 
 
+HAN = "%ED%95%9C"  # 「한」
+
+
+@pytest.mark.parametrize(
+    ("url_path", "expected"),
+    [
+        (f"/{HAN}%EA%B8%80/%EC%A0%9C%EB%AA%A9", "/한글/제목"),
+        ("/%6Aoin/Ab3dE9fG", "/join/*"),
+        ("/%4A%4F%49%4E/x", "/JOIN/*"),
+        ("/join%2FAb3dE9fG", "/join/*"),
+        ("/a%2F%2Fb", "/a//b"),
+        ("/%ZZ/x", "/%ZZ/x"),
+        ("/a%", "/a%"),
+        ("/a%FFb", "/a\ufffdb"),
+        (f"/a{HAN[:6]}", "/a\ufffd"),
+        ("/a%00b%0Ac%7F%C2%85d", "/abcd"),
+        ("/a\ud800b", "/ab"),
+        ("/%2525", "/%25"),
+    ],
+)
+def test_normalize_decodes_before_masking(url_path: str, expected: str) -> None:
+    assert normalize_path(f"https://t.example{url_path}") == expected
+
+
+def test_normalize_truncates_decoded_characters() -> None:
+    assert normalize_path("https://t.example/" + HAN * 600) == "/" + "한" * 511
+
+
 @pytest.fixture
 def site() -> Site:
     return Site.objects.create(key="t", name="시험", allowed_hosts="t.example")
@@ -86,6 +114,12 @@ def test_collect_stores_masked_path_and_keeps_referrer_host(site: Site) -> None:
     )
     view = PageView.objects.get()
     assert (view.path, view.referrer_host) == ("/join/*", "ref.example")
+
+
+@pytest.mark.django_db
+def test_collect_stores_decoded_path(site: Site) -> None:
+    assert record(payload(f"/{HAN}/%6Aoin/Ab3dE9fG"), "1.2.3.4", CHROME, NOW)
+    assert PageView.objects.get().path == "/한/join/*"
 
 
 @pytest.mark.django_db

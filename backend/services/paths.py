@@ -5,7 +5,9 @@
 """
 
 import re
+import unicodedata
 from datetime import date
+from urllib.parse import unquote
 
 MASK = "*"
 
@@ -79,6 +81,16 @@ def _is_identifier(segment: str) -> bool:
     return bool(
         _TOKEN.fullmatch(segment) and any(c.isdigit() for c in segment) and not _is_slug(segment)
     )
+
+
+def decode_path(path: str) -> str:
+    """퍼센트 인코딩을 한 번 푼다. 깨진 UTF-8은 U+FFFD, `%`가 아닌 꼴(`%ZZ`)은 그대로 둔다.
+
+    `%2F`가 만든 `/`도 조각 경계로 보고 마스킹하도록 풀고 나서 나눈다.
+    제어 문자·짝 없는 서로게이트는 저장·표시에 쓸모가 없어 지운다.
+    """
+    decoded = unquote(path, errors="replace")
+    return "".join(c for c in decoded if unicodedata.category(c) not in ("Cc", "Cs"))
 
 
 def mask_path(path: str) -> str:
