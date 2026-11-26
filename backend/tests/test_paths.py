@@ -163,3 +163,20 @@ def test_mask_existing_paths_command_is_idempotent(site: Site) -> None:
     again = io.StringIO()
     call_command("mask_existing_paths", stdout=again)
     assert "0건" in again.getvalue()
+
+
+@pytest.mark.django_db
+def test_mask_existing_paths_decodes_old_rows_like_new_collect(site: Site) -> None:
+    """#46 전 인코딩된 채 저장된 행이 새 수집과 같은 값이 된다."""
+    old = ("/%6Aoin/Ab3dE9fG", f"/{HAN}/x", "/join/%2FAb3dE9fG", "/a/b")
+    for path in old:
+        PageView.objects.create(site=site, occurred_at=NOW, path=path, visitor="v")
+    out = io.StringIO()
+    call_command("mask_existing_paths", stdout=out)
+    assert "3건" in out.getvalue()
+    stored = list(PageView.objects.order_by("id").values_list("path", flat=True))
+    assert stored == [normalize_path(f"https://t.example{path}") for path in old]
+    assert stored == ["/join/*", "/한/x", "/join/*", "/a/b"]
+    again = io.StringIO()
+    call_command("mask_existing_paths", stdout=again)
+    assert "0건" in again.getvalue()
