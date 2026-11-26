@@ -1,4 +1,4 @@
-"""admin: 사이트는 대표가 만들고 고친다. 일별 집계는 읽기 전용.
+"""admin: 사이트는 대표가 만들고 고친다(삭제 없음 — 정리는 끄기). 일별 집계는 읽기 전용.
 조회(PageView)·소금은 올리지 않는다."""
 
 from django.contrib import admin
@@ -21,6 +21,10 @@ class SiteAdmin(admin.ModelAdmin):  # type: ignore[type-arg]  # 런타임에 제
     list_filter = ("is_active",)
     search_fields = ("key", "name")
     change_list_template = "admin/metrics/site/change_list.html"
+
+    def has_delete_permission(self, request: HttpRequest, obj: Site | None = None) -> bool:
+        """삭제는 열지 않는다(#47) — 일별 집계가 지워지지 않게. 정리는 끄기(`is_active`)."""
+        return False
 
     def get_urls(self) -> list[URLPattern]:
         custom = path(
