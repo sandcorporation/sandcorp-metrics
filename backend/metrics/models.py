@@ -33,7 +33,11 @@ class Site(models.Model):
         max_length=500,
         help_text="쉼표로 구분(예: a.kr,www.a.kr). 그 밖의 호스트는 버린다.",
     )
-    is_active = models.BooleanField("켜짐", default=True)
+    is_active = models.BooleanField(
+        "켜짐",
+        default=True,
+        help_text="끄면 수집·공개 집계·요약에서 빠진다. 쌓인 데이터는 남는다.",
+    )
     created_at = models.DateTimeField("만든 시각", auto_now_add=True)
 
     class Meta:

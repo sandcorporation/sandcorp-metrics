@@ -33,7 +33,10 @@ class SiteAdmin(admin.ModelAdmin):  # type: ignore[type-arg]  # 런타임에 제
         return [custom, *super().get_urls()]
 
     def summary(self, request: HttpRequest) -> HttpResponse:
-        """최근 7일/30일: 사이트별 일별 표·상위 경로·상위 리퍼러(사이트당 쿼리 4개)."""
+        """최근 7일/30일: 켜진 사이트별 일별 표·상위 경로·상위 리퍼러(사이트당 쿼리 4개).
+
+        꺼진 사이트는 빠진다(#59) — 그 집계는 일별 집계 화면에 남는다.
+        """
         if not self.has_view_permission(request):  # admin_view는 is_staff만 본다(#43)
             raise PermissionDenied
         try:
@@ -50,7 +53,7 @@ class SiteAdmin(admin.ModelAdmin):  # type: ignore[type-arg]  # 런타임에 제
                 "paths": report.top_paths(site, days, SUMMARY_LIMIT, now),
                 "referrers": report.top_referrers(site, days, SUMMARY_LIMIT, now),
             }
-            for site in Site.objects.all()
+            for site in Site.objects.filter(is_active=True)
         ]
         context = {
             **self.admin_site.each_context(request),

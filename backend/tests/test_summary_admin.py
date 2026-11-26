@@ -96,8 +96,51 @@ def test_captions_name_the_site(owner: Client, site: Site) -> None:
     Site.objects.create(key="b", name="사이트B", allowed_hosts="b.kr")
     captions = re.findall(r"<caption>(.*?)</caption>", owner.get(URL).content.decode())
     assert len(captions) == 6
-    assert all(c.startswith("사이트A — ") for c in captions[:3])
-    assert all(c.startswith("사이트B — ") for c in captions[3:])
+    assert all(c.startswith("사이트A (a) — ") for c in captions[:3])
+    assert all(c.startswith("사이트B (b) — ") for c in captions[3:])
+
+
+def test_captions_tell_same_named_sites_apart(owner: Client, site: Site) -> None:
+    """이름이 같은 두 사이트도 caption 의 키로 구분한다(#59)."""
+    Site.objects.create(key="a2", name="사이트A", allowed_hosts="a2.kr")
+    captions = re.findall(r"<caption>(.*?)</caption>", owner.get(URL).content.decode())
+    assert len(set(captions)) == 6
+
+
+def test_inactive_sites_are_left_out(owner: Client, site: Site) -> None:
+    """끄기가 정리 수단이다 — 꺼진 사이트는 요약에서 빠진다(#59)."""
+    Site.objects.create(key="off", name="꺼진곳", allowed_hosts="off.kr", is_active=False)
+    response = owner.get(URL)
+    assert [b["site"].key for b in response.context["sites"]] == ["a"]
+    assert "꺼진곳" not in response.content.decode()
+
+
+def test_inactive_sites_add_no_queries(owner: Client, site: Site) -> None:
+    owner.get(URL)
+    with CaptureQueriesContext(connection) as before:
+        owner.get(URL)
+    Site.objects.create(key="off", name="꺼짐", allowed_hosts="off.kr", is_active=False)
+    with CaptureQueriesContext(connection) as after:
+        owner.get(URL)
+    assert len(after) == len(before)
+
+
+def test_long_key_heading_wraps(owner: Client) -> None:
+    """긴 키가 390px 에서 h2 를 넘쳐 페이지를 밀지 않는다(#59)."""
+    key = "k" * 49
+    Site.objects.create(key=key, name="긴키", allowed_hosts="k.kr")
+    html = owner.get(URL).content.decode()
+    assert f'<h2 class="site">긴키 ({key})</h2>' in html
+    assert re.search(
+        r"\.metrics-summary h2\.site, \.metrics-summary caption \{[^}]*overflow-wrap: anywhere",
+        html,
+    )
+    assert ".metrics-summary caption { text-transform: none; }" in html  # 키는 소문자 그대로
+
+
+def test_is_active_help_text_says_what_turning_off_does() -> None:
+    help_text = str(Site._meta.get_field("is_active").help_text)
+    assert "수집" in help_text and "요약" in help_text and "남" in help_text
 
 
 def test_long_labels_wrap_and_counts_stay_in_number_column(owner: Client, site: Site) -> None:
