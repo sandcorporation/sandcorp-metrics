@@ -41,6 +41,24 @@ def test_defaults_from_site_url() -> None:
     ]
 
 
+def db_connect_timeout(**overrides: str) -> str:
+    env = {k: v for k, v in os.environ.items() if not k.startswith(("DJANGO_", "DB_"))}
+    env.update({"DJANGO_SECRET_KEY": "x", "DJANGO_ADMIN_PATH": "a", **overrides})
+    code = (
+        "import config.settings as s; print(s.DATABASES['default']['OPTIONS']['connect_timeout'])"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code], cwd=BACKEND, env=env, capture_output=True, text=True
+    )
+    assert result.returncode == 0, result.stderr
+    return result.stdout.strip()
+
+
+def test_db_connect_timeout_defaults_to_five_seconds_and_follows_env() -> None:
+    assert db_connect_timeout() == "5"
+    assert db_connect_timeout(DB_CONNECT_TIMEOUT="2") == "2"
+
+
 def test_env_example_lists_every_setting() -> None:
     """settings.py가 읽는 환경 변수는 모두 .env.example에 설명과 함께 있다."""
     import re

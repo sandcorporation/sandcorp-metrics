@@ -7,6 +7,8 @@ from django.db import OperationalError, connection
 
 class Command(BaseCommand):
     help = "DB(MySQL)에 접속될 때까지 기다린다. 배포가 migrate 전에 부른다."
+    # 시스템 검사는 필드 검사에서 DB에 접속한다 — DB가 안 뜨면 기다리기 전에 넘어진다(#44).
+    requires_system_checks: list[str] = []
 
     def add_arguments(self, parser: CommandParser) -> None:
         parser.add_argument("--timeout", type=float, default=120.0, help="최대 대기(초). 기본 120")

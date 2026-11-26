@@ -1,7 +1,8 @@
-"""admin: 사이트는 대표가 만들고 고친다. 일별 집계는 읽기 전용.
+"""admin: 사이트는 대표가 만들고 고친다(삭제 없음 — 정리는 끄기). 일별 집계는 읽기 전용.
 조회(PageView)·소금은 올리지 않는다."""
 
 from django.contrib import admin
+from django.core.exceptions import PermissionDenied
 from django.http import HttpRequest, HttpResponse
 from django.template.response import TemplateResponse
 from django.urls import URLPattern, path
@@ -21,6 +22,10 @@ class SiteAdmin(admin.ModelAdmin):  # type: ignore[type-arg]  # 런타임에 제
     search_fields = ("key", "name")
     change_list_template = "admin/metrics/site/change_list.html"
 
+    def has_delete_permission(self, request: HttpRequest, obj: Site | None = None) -> bool:
+        """삭제는 열지 않는다(#47) — 일별 집계가 지워지지 않게. 정리는 끄기(`is_active`)."""
+        return False
+
     def get_urls(self) -> list[URLPattern]:
         custom = path(
             "summary/", self.admin_site.admin_view(self.summary), name="metrics_site_summary"
@@ -29,6 +34,8 @@ class SiteAdmin(admin.ModelAdmin):  # type: ignore[type-arg]  # 런타임에 제
 
     def summary(self, request: HttpRequest) -> HttpResponse:
         """최근 7일/30일: 사이트별 일별 표·상위 경로·상위 리퍼러(사이트당 쿼리 4개)."""
+        if not self.has_view_permission(request):  # admin_view는 is_staff만 본다(#43)
+            raise PermissionDenied
         try:
             days = int(request.GET.get("days", SUMMARY_DAYS[0]))
         except ValueError:

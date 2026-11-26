@@ -6,6 +6,8 @@ name: pr-check
 
 on:
   pull_request:
+    # staging 갈래 PR은 검사하지 않는다 — 검사는 main PR과 release(workflow_call)에서(#40).
+    branches-ignore: [staging]
   workflow_call:
 
 permissions:

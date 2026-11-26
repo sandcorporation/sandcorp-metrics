@@ -72,3 +72,19 @@ def test_four_queries_per_site(owner: Client, site: Site) -> None:
 
 def test_site_list_links_to_summary(owner: Client, site: Site) -> None:
     assert URL in owner.get("/admin/metrics/site/").content.decode()
+
+
+def test_staff_without_site_view_permission_gets_403(site: Site) -> None:
+    """목록과 같은 처리: 사이트 보기 권한이 없는 staff 는 요약도 403(#43)."""
+    from django.contrib.auth.models import Permission
+
+    staff = User.objects.create_user("staff", password=None, is_staff=True)
+    client = Client()
+    client.force_login(staff)
+    assert client.get("/admin/metrics/site/").status_code == 403
+    assert client.get(URL).status_code == 403
+
+    staff.user_permissions.add(Permission.objects.get(codename="view_site"))
+    allowed = Client()
+    allowed.force_login(User.objects.get(pk=staff.pk))
+    assert allowed.get(URL).status_code == 200
