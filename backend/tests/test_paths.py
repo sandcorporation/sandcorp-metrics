@@ -94,6 +94,25 @@ def test_normalize_decodes_before_masking(url_path: str, expected: str) -> None:
     assert normalize_path(f"https://t.example{url_path}") == expected
 
 
+@pytest.mark.parametrize(
+    ("url_path", "expected"),
+    [
+        ("/join/%2FAb3dE9fG", "/join/*"),
+        ("/join/Ab%2F3dE9fG", "/join/*"),
+        ("/join/Ab3dE9fG%2F", "/join/*"),
+        ("/join/Ab%2f3dE9fG/x", "/join/*/x"),
+        ("/join/%2F%2FAb3dE9fG/x", "/join/*/x"),
+        ("/join%2F/Ab3dE9fG", "/join//*"),
+        ("/x%2Fjoin/Ab3dE9fG", "/x/join/*"),
+        ("/a%2Fjoin%2FAb3dE9fG%2Fb", "/a/join/*/b"),
+        ("/join//Ab3dE9fG", "/join//*"),
+    ],
+)
+def test_normalize_splits_segments_on_encoded_slashes_only(url_path: str, expected: str) -> None:
+    """조각 경계는 원래 경로의 `/`만 — 디코딩된 `/`가 비밀 조각을 둘로 가르지 않는다."""
+    assert normalize_path(f"https://t.example{url_path}") == expected
+
+
 def test_normalize_truncates_decoded_characters() -> None:
     assert normalize_path("https://t.example/" + HAN * 600) == "/" + "한" * 511
 
